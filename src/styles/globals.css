@@ -1,0 +1,209 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* Stardust 新中式轻奢 — Light-first theme with gold-brown primary */
+  :root {
+    /* ── Background & Surface layers ── */
+    --background: 240 4% 96%;            /* #F5F5F7  Page background */
+    --foreground: 0 0% 20%;              /* #333333  Primary text */
+
+    --surface-1: 0 0% 100%;             /* #FFFFFF  Elevated surface / card */
+    --surface-2: 0 0% 98%;              /* #FAFAFA  Input / subtle surface */
+    --surface-3: 0 0% 94%;              /* #F0F0F0  Hover / active surface */
+
+    --card: 0 0% 100%;                  /* #FFFFFF  Card background */
+    --card-foreground: 0 0% 20%;        /* #333333 */
+
+    --popover: 0 0% 100%;              /* #FFFFFF */
+    --popover-foreground: 0 0% 20%;
+
+    /* ── Primary: Gold-Brown 金棕 ── */
+    --primary: 37 36% 53%;              /* #B2955D  Gold-brown (brand) */
+    --primary-light: 30 84% 80%;        /* #F7D3A1  Light gold */
+    --primary-dark: 40 75% 31%;         /* #8B6914  Deep amber */
+    --primary-foreground: 0 0% 100%;    /* #FFFFFF */
+
+    /* ── Secondary: Warm neutral ── */
+    --secondary: 240 4% 96%;            /* #F5F5F7  Light neutral */
+    --secondary-light: 0 0% 98%;        /* #FAFAFA */
+    --secondary-dark: 0 0% 91%;         /* #E8E8E8 */
+    --secondary-foreground: 0 0% 20%;   /* #333333 */
+
+    /* ── Accent: Info Blue ── */
+    --accent: 207 90% 54%;              /* #1890FF  Info blue */
+    --accent-light: 207 100% 93%;       /* #e6f7ff  Light blue bg */
+    --accent-dark: 207 90% 44%;         /* #096dd9 */
+    --accent-foreground: 0 0% 100%;
+
+    /* ── Muted & subdued ── */
+    --muted: 0 0% 94%;                  /* #F0F0F0 */
+    --muted-foreground: 0 0% 60%;       /* #999999  Tertiary text */
+
+    /* ── Semantic: Destructive (Red) ── */
+    --destructive: 356 100% 65%;        /* #FF4D4F */
+    --destructive-foreground: 0 0% 100%;
+
+    /* ── Semantic: Success (Green) ── */
+    --success: 99 68% 44%;              /* #52C41A */
+    --success-foreground: 0 0% 100%;
+
+    /* ── Semantic: Warning (Yellow-Orange) ── */
+    --warning: 36 95% 53%;              /* #FAAD14 */
+    --warning-foreground: 0 0% 20%;     /* #333333 dark text on yellow */
+
+    /* ── Semantic: Info (Blue) ── */
+    --info: 207 90% 54%;                /* #1890FF */
+    --info-foreground: 0 0% 100%;
+
+    /* ── Text hierarchy ── */
+    --text-primary: 0 0% 20%;           /* #333333  Titles, body */
+    --text-secondary: 0 0% 40%;         /* #666666  Descriptions */
+    --text-tertiary: 0 0% 60%;          /* #999999  Hints, timestamps */
+
+    /* ── Borders & Inputs ── */
+    --border: 0 0% 91%;                 /* #E8E8E8 */
+    --border-light: 0 0% 94%;           /* #F0F0F0  Tab top line, light divider */
+    --input: 0 0% 98%;                  /* #FAFAFA  Input bg */
+    --ring: 37 36% 53%;                 /* Primary gold focus ring */
+
+    /* ── Glass / overlay (for modal backdrop) ── */
+    --glass-bg: 0 0% 100%;
+    --glass-border: 0 0% 91%;
+
+    /* ── Gradient endpoints (gold) ── */
+    --gradient-start: 37 36% 53%;       /* Gold primary */
+    --gradient-end: 30 84% 80%;         /* Light gold */
+
+    /* ── Deep background (splash / auth) ── */
+    --deep-bg: 256 58% 6%;              /* #0F0A1A  Deep purple-black */
+
+    /* ── Tier colors ── */
+    --tier-novice: 0 0% 60%;            /* #999999 */
+    --tier-certified: 99 68% 44%;       /* #52C41A */
+    --tier-senior: 207 90% 54%;         /* #1890FF */
+    --tier-expert: 269 75% 49%;         /* #722ED1 */
+    --tier-master: 330 82% 55%;         /* #EB2F96 */
+
+    /* ── Order status colors ── */
+    --status-pending: 36 95% 53%;       /* #FAAD14 */
+    --status-paid: 207 90% 54%;         /* #1890FF */
+    --status-accepted: 269 75% 49%;     /* #722ED1 */
+    --status-completed: 99 68% 44%;     /* #52C41A */
+    --status-cancelled: 0 0% 60%;       /* #999999 */
+    --status-reviewed: 330 82% 55%;     /* #EB2F96 */
+
+    /* ── Wallet specialized ── */
+    --wallet-income: 153 52% 42%;       /* #27AE60 */
+    --wallet-expense: 6 71% 57%;        /* #E74C3C */
+    --wallet-create-bg: 207 100% 93%;   /* #e6f7ff */
+    --wallet-import-bg: 30 100% 93%;    /* #fff7e6 */
+    --wallet-highlight: 210 100% 97%;   /* #f0f7ff */
+    --wallet-warn-bg: 42 100% 95%;      /* #FFF8E6 */
+
+    /* ── Online / notification ── */
+    --online: 131 58% 62%;              /* #4CD964 */
+    --unread: 5 100% 59%;               /* #FF3B30 */
+
+    --radius: 0.75rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer utilities {
+  /* Brand gradient (gold → light gold) */
+  .bg-gradient-brand {
+    background: linear-gradient(
+      135deg,
+      hsl(var(--primary)) 0%,
+      hsl(var(--primary-light)) 100%
+    );
+  }
+
+  /* Subtle gradient for cards / headers */
+  .bg-gradient-subtle {
+    background: linear-gradient(
+      135deg,
+      hsl(var(--primary) / 0.1) 0%,
+      hsl(var(--primary-light) / 0.15) 100%
+    );
+  }
+
+  /* Traditional Chinese red gradient (calendar / fortune header) */
+  .bg-gradient-header {
+    background: linear-gradient(135deg, #8b0000, #a52a2a);
+  }
+
+  /* Fortune card: gold gradient */
+  .bg-gradient-fortune {
+    background: linear-gradient(135deg, #daa520, #cd853f);
+  }
+
+  /* Parchment/paper gradient */
+  .bg-gradient-paper {
+    background: linear-gradient(180deg, #faf8f5, #f5f0e8);
+  }
+
+  /* Cream fortune gradient */
+  .bg-gradient-cream {
+    background: linear-gradient(145deg, #fff8dc, #faebd7);
+  }
+
+  /* Golden divider */
+  .bg-gradient-divider {
+    background: linear-gradient(to right, transparent, #d2691e, transparent);
+  }
+
+  /* Deep splash / auth background */
+  .bg-deep {
+    background-color: hsl(var(--deep-bg));
+  }
+
+  /* Glass-morphism effect (light) */
+  .glass {
+    background: hsl(var(--glass-bg) / 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid hsl(var(--glass-border) / 0.5);
+  }
+
+  /* Shadow system — 3-tier (Stardust style, very subtle) */
+  .shadow-card-sm {
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  }
+  .shadow-card-md {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  }
+  .shadow-card-lg {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  }
+
+  /* Glow effect for primary elements (gold) */
+  .glow-primary {
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.2),
+                0 0 40px hsl(var(--primary) / 0.08);
+  }
+
+  .glow-accent {
+    box-shadow: 0 0 20px hsl(var(--accent) / 0.2),
+                0 0 40px hsl(var(--accent) / 0.08);
+  }
+
+  /* Wallet balance card (full gold background) */
+  .bg-wallet-balance {
+    background-color: hsl(var(--primary));
+    color: white;
+  }
+}
