@@ -55,6 +55,14 @@ export function useLocalWallet() {
 
       const keyring = getKeyring();
       const pair = keyring.addFromMnemonic(trimmed, { name }, 'sr25519');
+
+      // Check for duplicate address before saving
+      const existingAccounts = useLocalAccountsStore.getState().accounts;
+      if (existingAccounts.some((a) => a.address === pair.address)) {
+        pair.lock();
+        throw new Error('DUPLICATE_ACCOUNT');
+      }
+
       const json = pair.toJson(password);
 
       const account: LocalAccount = {

@@ -46,7 +46,11 @@ export const useLocalAccountsStore = create<LocalAccountsState>((set, get) => ({
   },
 
   addAccount: (account) => {
-    const accounts = [...get().accounts, account];
+    const existing = get().accounts;
+    if (existing.some((a) => a.address === account.address)) {
+      throw new Error('Account already exists');
+    }
+    const accounts = [...existing, account];
     saveAccounts(accounts);
     set({ accounts });
   },

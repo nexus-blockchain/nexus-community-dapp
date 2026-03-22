@@ -8,6 +8,7 @@ import { formatBalance } from '@/lib/utils/chain-helpers';
 
 interface TreasuryCardProps {
   entityId: number;
+  entityName?: string;
 }
 
 type HealthLevel = 'healthy' | 'warning' | 'danger';
@@ -35,7 +36,7 @@ const healthConfig: Record<HealthLevel, {
   danger:  { icon: ShieldX,     dotColor: 'bg-red-500',    label: 'treasuryDanger',  textColor: 'text-red-600' },
 };
 
-export function TreasuryCard({ entityId }: TreasuryCardProps) {
+export function TreasuryCard({ entityId, entityName }: TreasuryCardProps) {
   const t = useTranslations('profile');
   const { data: treasury, isLoading } = useTreasury(entityId);
 
@@ -87,7 +88,7 @@ export function TreasuryCard({ entityId }: TreasuryCardProps) {
             <Landmark className="h-4.5 w-4.5 text-amber-600" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-xs text-muted-foreground">{t('treasuryBalance')}</p>
+            <p className="text-xs text-muted-foreground">{entityName ? `${entityName} ${t('treasuryBalance')}` : t('treasuryBalance')}</p>
             <p className="text-lg font-bold">{formatBalance(treasury.balance.toString())} <span className="text-sm font-normal text-muted-foreground">NEX</span></p>
           </div>
           <div className="flex items-center gap-1.5">

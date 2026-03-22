@@ -14,17 +14,20 @@ import {
 import {
   Wallet, Copy, Check, LogOut, Plus, Download,
   ArrowRightLeft, Eye, EyeOff, Send, RefreshCw,
-  QrCode, Key, Pencil, ShieldAlert, Trash2, Lock,
+  QrCode, Key, Pencil, ShieldAlert, Trash2, Lock, Coins, Loader2,
 } from 'lucide-react';
 import { useWalletStore } from '@/stores';
 import { useLocalAccountsStore } from '@/stores/local-accounts-store';
+import { useEntityStore } from '@/stores/entity-store';
 import { useWallet, type UnifiedAccount } from '@/hooks/use-wallet';
 import { useLocalWallet } from '@/hooks/use-local-wallet';
 import { useNexBalance } from '@/hooks/use-nex-balance';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useQueryClient } from '@tanstack/react-query';
 import { formatBalance, shortAddress } from '@/lib/utils/chain-helpers';
+import { validatePassword } from '@/lib/utils/password-validation';
 import { TransferDialog, ReceiveDialog } from '@/components/wallet/wallet-dialogs';
+import { useTokenBalance, useTokenMetadata, useTokenConfig } from '@/hooks/use-token';
 
 // ─────────────────────────────────────────────
 // Create Wallet Dialog
@@ -61,14 +64,26 @@ function CreateWalletDialog({
     setVerifyError(false); setError(''); setCreating(false);
   };
 
-  const handleOpenChange = (v: boolean) => { if (!v) resetState(); onOpenChange(v); };
+  const handleOpenChange = (v: boolean) => { if (!v && creating) return; if (!v) resetState(); onOpenChange(v); };
 
-  const handleCopyMnemonic = () => {
+  const handleCopyMnemonic = async () => {
+    let copied = false;
     if (navigator.clipboard?.writeText) {
-      navigator.clipboard.writeText(mnemonic);
-    } else {
-      const ta = Object.assign(document.createElement('textarea'), { value: mnemonic, style: 'position:fixed;opacity:0' });
-      document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+      try {
+        await navigator.clipboard.writeText(mnemonic);
+        copied = true;
+        setTimeout(() => { try { navigator.clipboard.writeText(''); } catch {} }, 30_000);
+      } catch {
+        // Clipboard API failed (non-HTTPS, WebView, etc.), fall through to fallback
+      }
+    }
+    if (!copied) {
+      const ta = Object.assign(document.createElement('textarea'), { value: mnemonic, style: 'position:fixed;left:-9999px;opacity:0' });
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      try { document.execCommand('copy'); } catch {}
+      document.body.removeChild(ta);
     }
     setMnemonicCopied(true);
     setTimeout(() => setMnemonicCopied(false), 2000);
@@ -101,9 +116,12 @@ function CreateWalletDialog({
 
   const handleStep1 = async () => {
     if (!walletName.trim()) { setError(t('enterName')); return; }
-    if (password.length < 6) { setError(t('passwordTooShort')); return; }
+    const pwdCheck = validatePassword(password);
+    if (!pwdCheck.valid) { setError(t(pwdCheck.errorKey!)); return; }
     if (password !== confirmPwd) { setError(t('passwordMismatch')); return; }
     setError(''); setCreating(true);
+    // Yield to the event loop so the spinner renders before heavy crypto work
+    await new Promise((r) => setTimeout(r, 50));
     try {
       const result = await createWallet(walletName.trim(), password);
       setMnemonic(result.mnemonic); setAddress(result.address); setStep(2);
@@ -125,7 +143,13 @@ function CreateWalletDialog({
         </DialogHeader>
 
         {step === 1 && (
-          <div className="space-y-4">
+          <div className="space-y-4 relative">
+            {creating && (
+              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 rounded-lg bg-background/80 backdrop-blur-sm">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p className="text-sm text-muted-foreground">{t('creatingWalletHint')}</p>
+              </div>
+            )}
             <div>
               <label className="text-sm font-medium">{t('walletName')}</label>
               <Input placeholder={t('walletNamePlaceholder')} value={walletName}
@@ -134,7 +158,7 @@ function CreateWalletDialog({
             <div>
               <label className="text-sm font-medium">{t('password')}</label>
               <div className="relative mt-1">
-                <Input type={showPwd ? 'text' : 'password'} placeholder={t('passwordMin6')}
+                <Input type={showPwd ? 'text' : 'password'} placeholder={t('passwordMin8')}
                   value={password} onChange={(e) => setPassword(e.target.value)} />
                 <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground"
                   onClick={() => setShowPwd(!showPwd)}>
@@ -149,7 +173,9 @@ function CreateWalletDialog({
             </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
             <Button className="w-full" onClick={handleStep1} disabled={creating}>
-              {creating ? t('creating') : t('nextStep')}
+              {creating ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('creating')}</>
+              ) : t('nextStep')}
             </Button>
           </div>
         )}
@@ -238,14 +264,19 @@ function ImportWalletDialog({
     const wordCount = mnemonic.trim().split(/\s+/).length;
     if (wordCount !== 12 && wordCount !== 24) { setError(t('mnemonicWordCount')); return; }
     if (!walletName.trim()) { setError(t('enterName')); return; }
-    if (password.length < 6) { setError(t('passwordTooShort')); return; }
+    const pwdCheck = validatePassword(password);
+    if (!pwdCheck.valid) { setError(t(pwdCheck.errorKey!)); return; }
     if (password !== confirmPwd) { setError(t('passwordMismatch')); return; }
     setError(''); setImporting(true);
     try {
       const result = await importWallet(mnemonic.trim(), walletName.trim(), password);
       onImported(result.address); handleOpenChange(false);
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('importFailed'));
+      if (e instanceof Error && e.message === 'DUPLICATE_ACCOUNT') {
+        setError(t('duplicateAccount'));
+      } else {
+        setError(e instanceof Error ? e.message : t('importFailed'));
+      }
     } finally { setImporting(false); }
   };
 
@@ -269,7 +300,7 @@ function ImportWalletDialog({
           </div>
           <div>
             <label className="text-sm font-medium">{t('password')}</label>
-            <Input type="password" placeholder={t('passwordMin6')} value={password}
+            <Input type="password" placeholder={t('passwordMin8')} value={password}
               onChange={(e) => setPassword(e.target.value)} className="mt-1" />
           </div>
           <div>
@@ -431,20 +462,20 @@ function SwitchAccountDialog({ open, onOpenChange }: { open: boolean; onOpenChan
 }
 
 // ─────────────────────────────────────────────
-// Export Mnemonic Dialog (NEW - borrowed from Stardust)
+// Export Encrypted Backup Dialog
 // ─────────────────────────────────────────────
 function ExportMnemonicDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const t = useTranslations('wallet');
   const { address, source } = useWalletStore();
   const { unlockWallet } = useLocalWallet();
   const [password, setPassword] = useState('');
-  const [mnemonic, setMnemonic] = useState('');
+  const [backupJson, setBackupJson] = useState('');
   const [error, setError] = useState('');
   const [unlocking, setUnlocking] = useState(false);
-  const [mnemonicCopied, setMnemonicCopied] = useState(false);
+  const [copied, setCopied] = useState(false);
   const isLocal = source === 'local';
 
-  const resetState = () => { setPassword(''); setMnemonic(''); setError(''); setUnlocking(false); setMnemonicCopied(false); };
+  const resetState = () => { setPassword(''); setBackupJson(''); setError(''); setUnlocking(false); setCopied(false); };
   const handleOpenChange = (v: boolean) => { if (!v) resetState(); onOpenChange(v); };
 
   const handleUnlock = async () => {
@@ -453,29 +484,30 @@ function ExportMnemonicDialog({ open, onOpenChange }: { open: boolean; onOpenCha
     try {
       const pair = await unlockWallet(address, password);
       const json = pair.toJson(password);
-      setMnemonic(JSON.stringify(json, null, 2));
+      setBackupJson(JSON.stringify(json, null, 2));
     } catch {
       setError(t('unlockFailed'));
     } finally { setUnlocking(false); }
   };
 
-  const handleCopyMnemonic = () => {
+  const handleCopy = () => {
     if (navigator.clipboard?.writeText) {
-      navigator.clipboard.writeText(mnemonic);
+      navigator.clipboard.writeText(backupJson);
+      setTimeout(() => { try { navigator.clipboard.writeText(''); } catch {} }, 30_000);
     } else {
-      const ta = Object.assign(document.createElement('textarea'), { value: mnemonic, style: 'position:fixed;opacity:0' });
+      const ta = Object.assign(document.createElement('textarea'), { value: backupJson, style: 'position:fixed;opacity:0' });
       document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
     }
-    setMnemonicCopied(true);
-    setTimeout(() => setMnemonicCopied(false), 2000);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>{t('exportMnemonic')}</DialogTitle>
-          <DialogDescription>{t('exportMnemonicDesc')}</DialogDescription>
+          <DialogTitle>{t('exportBackup')}</DialogTitle>
+          <DialogDescription>{t('exportBackupDesc')}</DialogDescription>
         </DialogHeader>
 
         {!isLocal ? (
@@ -483,26 +515,30 @@ function ExportMnemonicDialog({ open, onOpenChange }: { open: boolean; onOpenCha
             <ShieldAlert className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
             <p className="text-sm text-muted-foreground">{t('exportNotLocal')}</p>
           </div>
-        ) : mnemonic ? (
+        ) : backupJson ? (
           <div className="space-y-4">
             {/* Warning */}
             <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3">
               <div className="flex items-start gap-2">
                 <ShieldAlert className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
-                <p className="text-xs text-destructive">{t('exportWarning')}</p>
+                <p className="text-xs text-destructive">{t('exportBackupWarning')}</p>
               </div>
             </div>
             {/* JSON backup data */}
             <div>
-              <p className="text-sm font-medium mb-2">{t('mnemonicLabel')}</p>
+              <p className="text-sm font-medium mb-2">{t('backupJsonLabel')}</p>
               <div className="rounded-lg border bg-secondary/50 p-3 max-h-[200px] overflow-y-auto">
-                <pre className="font-mono text-[10px] break-all whitespace-pre-wrap select-all">{mnemonic}</pre>
+                <pre className="font-mono text-[10px] break-all whitespace-pre-wrap select-all">{backupJson}</pre>
               </div>
             </div>
+            {/* Note about mnemonic */}
+            <div className="rounded-lg border border-warning/30 bg-warning/5 p-3">
+              <p className="text-xs text-muted-foreground">{t('exportBackupNote')}</p>
+            </div>
             {/* Copy */}
-            <Button variant="outline" className="w-full" onClick={handleCopyMnemonic}>
-              {mnemonicCopied ? <Check className="h-4 w-4 mr-2 text-success" /> : <Copy className="h-4 w-4 mr-2" />}
-              {mnemonicCopied ? t('copiedMnemonic') : t('copyMnemonic')}
+            <Button variant="outline" className="w-full" onClick={handleCopy}>
+              {copied ? <Check className="h-4 w-4 mr-2 text-success" /> : <Copy className="h-4 w-4 mr-2" />}
+              {copied ? t('copiedMnemonic') : t('copyBackup')}
             </Button>
             <Button className="w-full" onClick={() => handleOpenChange(false)}>{t('done')}</Button>
           </div>
@@ -532,12 +568,19 @@ export default function WalletPage() {
   const t = useTranslations();
   const { address, isConnected, source, name, isLocked, lockWallet, autoLockMinutes, setAutoLockMinutes } = useWalletStore();
   const { getExtensionAccounts, connectExtension, connect, disconnect } = useWallet();
+  const currentEntityId = useEntityStore((s) => s.currentEntityId);
   const queryClient = useQueryClient();
 
   const { data: nexBalance } = useNexBalance(address);
   const freeBalance = nexBalance?.free ?? BigInt(0);
   const reservedBalance = nexBalance?.reserved ?? BigInt(0);
   const totalBalance = freeBalance + reservedBalance;
+
+  // Entity token queries
+  const { data: tokenConfig } = useTokenConfig(currentEntityId);
+  const { data: tokenMeta } = useTokenMetadata(currentEntityId);
+  const { data: tokenBalance } = useTokenBalance(currentEntityId, address);
+  const hasToken = !!tokenConfig?.enabled && !!tokenMeta;
 
   const [copied, setCopied] = useState(false);
   const [connecting, setConnecting] = useState(false);
@@ -551,8 +594,11 @@ export default function WalletPage() {
   const isLocal = source === 'local';
 
   const handleRefreshBalance = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: ['nexBalance', address] });
-  }, [queryClient, address]);
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['nexBalance', address] }),
+      queryClient.invalidateQueries({ queryKey: ['tokenBalance', currentEntityId, address] }),
+    ]);
+  }, [queryClient, address, currentEntityId]);
 
   const { containerRef, pullState, pullDistance } = usePullToRefresh({
     onRefresh: handleRefreshBalance,
@@ -665,7 +711,7 @@ export default function WalletPage() {
                 {isLocal && (
                   <Button variant="outline" className="h-auto py-3 flex-col gap-1.5" onClick={() => setShowExport(true)}>
                     <Key className="h-5 w-5 text-amber-600" />
-                    <span className="text-[11px]">{t('wallet.exportMnemonic')}</span>
+                    <span className="text-[11px]">{t('wallet.exportBackup')}</span>
                   </Button>
                 )}
                 {isLocal && (
@@ -677,7 +723,7 @@ export default function WalletPage() {
                 {!isLocal && (
                   <Button variant="outline" className="h-auto py-3 flex-col gap-1.5" disabled>
                     <Key className="h-5 w-5 text-muted-foreground" />
-                    <span className="text-[11px] text-muted-foreground">{t('wallet.exportMnemonic')}</span>
+                    <span className="text-[11px] text-muted-foreground">{t('wallet.exportBackup')}</span>
                   </Button>
                 )}
               </div>
@@ -699,6 +745,32 @@ export default function WalletPage() {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Entity Token Holdings */}
+              {hasToken && (
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Coins className="h-4 w-4 text-amber-500" />
+                      <span className="text-sm font-medium">{t('wallet.tokenHoldings')}</span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg bg-secondary/50 p-3">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-500/15 text-amber-600 font-bold text-sm">
+                          {tokenMeta!.symbol.charAt(0)}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">{tokenMeta!.name}</p>
+                          <p className="text-xs text-muted-foreground">{tokenMeta!.symbol}</p>
+                        </div>
+                      </div>
+                      <p className="text-sm font-semibold tabular-nums">
+                        {formatBalance(tokenBalance ?? '0', tokenMeta!.decimals || 12)}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Auto-lock setting (local wallet only) */}
               {isLocal && (

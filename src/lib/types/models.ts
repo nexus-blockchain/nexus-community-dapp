@@ -718,3 +718,52 @@ export interface PaginatedGenerationResult {
   pageIndex: number;
   hasMore: boolean;
 }
+
+// ---------------------------------------------------------------------------
+// Commission Preview — Core Config & Plugin Configs
+// ---------------------------------------------------------------------------
+export interface PluginBudgetCaps {
+  referral: number;
+  multiLevel: number;
+  levelDiff: number;
+  singleLine: number;
+  team: number;
+}
+
+export interface CoreCommissionConfig {
+  maxCommissionRate: number;
+  creatorRewardRate: number;
+  pluginCaps: PluginBudgetCaps;
+  enabledModes: number;
+}
+
+export interface ReferralCaps {
+  maxPerOrder: string | null;
+  maxTotal: string | null;
+}
+
+export interface ReferralConfig {
+  directRewardRate: number;
+  firstOrderRate: number;
+  firstOrderAmount: string;
+  repeatPurchaseRate: number;
+  fixedAmountAmount: string;
+  caps: ReferralCaps;
+}
+
+export interface LevelDiffConfig {
+  levelRates: number[];
+  maxDepth: number;
+}
+
+export interface TeamPerformanceTier {
+  salesThreshold: string;
+  minTeamSize: number;
+  rate: number;
+}
+
+export interface TeamPerformanceConfig {
+  tiers: TeamPerformanceTier[];
+  maxDepth: number;
+  allowStacking: boolean;
+}

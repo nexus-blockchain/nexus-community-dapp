@@ -3,19 +3,23 @@
 import { useMemo } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { MobileHeader } from '@/components/layout/mobile-header';
 import { PageContainer } from '@/components/layout/page-container';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { ProductImage } from '@/components/ui/product-image';
 import {
-  ShoppingBag, ShoppingCart, Coins, Award, UserPlus, TrendingUp,
-  Megaphone, FileText, Pin, AlertTriangle, Network,
+  ShoppingBag, ShoppingCart, Coins, UserPlus, TrendingUp,
+  Megaphone, FileText, Pin, AlertTriangle, Network, Package,
 } from 'lucide-react';
 import { useWalletStore, useEntityStore } from '@/stores';
 import { useMember } from '@/hooks/use-member';
 import { useBuyerOrders } from '@/hooks/use-order';
+import { useEntityShops } from '@/hooks/use-shop';
+import { useAllShopsProducts } from '@/hooks/use-product';
+import { useNexPrice } from '@/hooks/use-nex-price';
 import { usePinnedAnnouncements, useEntityAnnouncements, useEntityDisclosures } from '@/hooks/use-disclosure';
 import { useIpfsContents } from '@/hooks/use-ipfs-content';
+import { formatBalance, formatUsdt } from '@/lib/utils/chain-helpers';
 import type { AnnouncementRecord } from '@/lib/types';
 
 /** Map announcement category enum to i18n key */
@@ -61,6 +65,9 @@ function categoryBadgeColor(category: string): string {
 export default function CommunityHomePage() {
   const t = useTranslations();
   const td = useTranslations('disclosure');
+  const tShop = useTranslations('shop');
+  const tProduct = useTranslations('product');
+  const tMall = useTranslations('mall');
   const { address } = useWalletStore();
   const { currentEntityId, entityName } = useEntityStore();
   const { data: member } = useMember(currentEntityId, address);
@@ -69,6 +76,24 @@ export default function CommunityHomePage() {
   const { data: announcements } = useEntityAnnouncements(currentEntityId, 5);
   const { data: disclosures } = useEntityDisclosures(currentEntityId, 3);
 
+  // Fetch products for homepage recommendation
+  const { data: shops } = useEntityShops(currentEntityId);
+  const { toNex } = useNexPrice();
+  const activeShopIds = useMemo(
+    () => (shops ?? []).filter((s) => s.status === 'Active').map((s) => s.id),
+    [shops],
+  );
+  const { data: allProducts } = useAllShopsProducts(activeShopIds);
+  const recommendedProducts = useMemo(
+    () => (allProducts ?? []).filter((p) => p.status === 'OnSale').slice(0, 4),
+    [allProducts],
+  );
+  const productNameCids = useMemo(
+    () => recommendedProducts.map((p) => p.nameCid),
+    [recommendedProducts],
+  );
+  const { contentMap: productNameMap } = useIpfsContents(productNameCids);
+
   const quickActions = [
     { label: t('home.viewShops'), icon: ShoppingBag, href: '/mall', color: 'text-info' },
     { label: t('home.myOrders'), icon: ShoppingCart, href: '/me', color: 'text-success' },
@@ -76,7 +101,6 @@ export default function CommunityHomePage() {
     { label: t('home.inviteFriends'), icon: UserPlus, href: '/member/invite', color: 'text-primary' },
     { label: t('home.tokenMarket'), icon: TrendingUp, href: '/market', color: 'text-accent' },
     { label: t('home.referralNetwork'), icon: Network, href: '/member/network', color: 'text-info' },
-    { label: t('home.memberLevels'), icon: Award, href: '/member/profile', color: 'text-primary-dark' },
   ];
 
   const activeOrders = (orders ?? []).filter((o) => !['Completed', 'Refunded', 'Cancelled'].includes(o.status));
@@ -115,14 +139,14 @@ export default function CommunityHomePage() {
 
   return (
     <>
-      <MobileHeader title={t('home.title')} />
       <PageContainer>
         <div className="space-y-4">
           {/* Welcome */}
           <Card className="border-primary/30 bg-gradient-to-br from-primary/10 to-primary/5">
             <CardContent className="p-4">
               <h2 className="text-lg font-semibold">
-                {entityName ? t('home.welcome', { name: entityName }) : t('home.welcomeDefault')}
+                <span className="text-muted-foreground">{t('home.welcomePrefix')}</span>{' '}
+                <span className="text-primary">{entityName || t('home.welcomeDefaultName')}</span>
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 {t('home.subtitle')}
@@ -182,6 +206,72 @@ export default function CommunityHomePage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Recommended Products */}
+          {recommendedProducts.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center justify-between text-sm">
+                  <span className="flex items-center gap-2">
+                    <Package className="h-4 w-4" />
+                    {t('home.recommendedProducts')}
+                  </span>
+                  <Link href="/mall" className="text-xs font-normal text-primary">
+                    {t('home.viewAll')}
+                  </Link>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-3">
+                  {recommendedProducts.map((product) => {
+                    const dynNex = toNex(product.usdtPrice);
+                    return (
+                      <Link key={product.id} href={`/product/${product.id}`}>
+                        <Card className="h-full transition-colors hover:border-primary/50">
+                          <CardContent className="p-2.5">
+                            <div className="relative flex h-24 items-center justify-center overflow-hidden rounded-lg bg-primary/10">
+                              <ProductImage cid={product.imagesCid} />
+                            </div>
+                            <div className="mt-2">
+                              {product.nameCid && (
+                                <p className="truncate text-sm font-medium">
+                                  {productNameMap.get(product.nameCid) || tMall('loading')}
+                                </p>
+                              )}
+                              {product.usdtPrice > 0 && (
+                                <p className="text-sm font-semibold text-primary">
+                                  ${formatUsdt(product.usdtPrice)} USDT
+                                </p>
+                              )}
+                              {dynNex ? (
+                                <p className="text-xs text-muted-foreground">
+                                  ≈ {formatBalance(dynNex)} NEX
+                                </p>
+                              ) : product.usdtPrice <= 0 ? (
+                                <p className="text-sm font-semibold text-primary">
+                                  {formatBalance(product.price, 12, 0)} NEX
+                                </p>
+                              ) : null}
+                              <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                                <span>
+                                  {product.stock === 0
+                                    ? tShop('stockUnlimited')
+                                    : tShop('stock', { count: product.stock - product.soldCount })}
+                                </span>
+                                {product.soldCount > 0 && (
+                                  <span>{tShop('sold', { count: product.soldCount })}</span>
+                                )}
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Announcements */}
           <Card>

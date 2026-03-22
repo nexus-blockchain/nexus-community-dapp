@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { NextIntlClientProvider } from 'next-intl';
+import { cryptoWaitReady } from '@polkadot/util-crypto';
 import { ApiProvider } from '@/lib/chain/api-provider';
 import { Toaster } from '@/components/ui/toaster';
 import { UnlockDialog } from '@/components/wallet/unlock-dialog';
@@ -10,6 +11,9 @@ import { SigningDialog } from '@/components/wallet/signing-dialog';
 import { useAutoLock } from '@/hooks/use-auto-lock';
 import { useLocaleStore } from '@/stores/locale-store';
 import { getMessages, type Locale } from '@/i18n/config';
+
+// Pre-warm WASM crypto so wallet creation/import is instant
+cryptoWaitReady().catch(() => {});
 
 function makeQueryClient() {
   return new QueryClient({

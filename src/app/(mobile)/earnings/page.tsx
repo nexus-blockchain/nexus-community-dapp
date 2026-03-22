@@ -10,7 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import {
   ArrowRight, UserPlus, Layers, Trophy,
   Users2, ArrowUpDown, TrendingDown, Wallet,
-  CheckCircle2, XCircle, AlertTriangle,
+  CheckCircle2, XCircle, AlertTriangle, Eye,
 } from 'lucide-react';
 import { useEntityStore, useWalletStore } from '@/stores';
 import { useCommissionDashboard, useEntityCommissionOverview } from '@/hooks/use-commission-dashboard';
@@ -343,6 +343,24 @@ export default function EarningsPage() {
               </div>
             </div>
           ) : null}
+
+          {/* Commission Preview link */}
+          {!isLoading && commissionActive && (
+            <Link href="/earnings/commission-preview">
+              <Card className="transition-colors hover:border-primary/50">
+                <CardContent className="flex items-center gap-3 p-4">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/20 text-primary">
+                    <Eye className="h-5 w-5" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">{t('commissionPreviewLink')}</p>
+                    <p className="text-xs text-muted-foreground">{t('commissionPreviewDesc')}</p>
+                  </div>
+                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                </CardContent>
+              </Card>
+            </Link>
+          )}
 
           {/* Withdrawal summary — only when commission active & has data */}
           {!isLoading && commissionActive && address && (BigInt(pending || '0') > BigInt(0) || BigInt(withdrawn || '0') > BigInt(0)) && (

@@ -23,7 +23,8 @@ import { useMemberDashboard } from '@/hooks/use-member-team';
 import { useBuyerOrders } from '@/hooks/use-order';
 import { useNexBalance } from '@/hooks/use-nex-balance';
 import { useShoppingBalance, useTokenShoppingBalance } from '@/hooks/use-loyalty';
-import { formatBalance, shortAddress } from '@/lib/utils/chain-helpers';
+import { formatBalance, shortAddress, formatUsdt } from '@/lib/utils/chain-helpers';
+import { useNexPrice } from '@/hooks/use-nex-price';
 import { TransferDialog, ReceiveDialog } from '@/components/wallet/wallet-dialogs';
 import { TreasuryCard } from '@/features/profile';
 import { useIsEntityOwner } from '@/hooks/use-treasury';
@@ -180,6 +181,8 @@ export default function MePage() {
   const { data: orders } = useBuyerOrders(address);
   const { data: nexBalance } = useNexBalance(address);
   const balance = nexBalance?.free ?? BigInt(0);
+  const { toUsdt } = useNexPrice();
+  const balanceUsdt = toUsdt(balance.toString());
   const isEntityOwner = useIsEntityOwner();
 
   const [copied, setCopied] = useState(false);
@@ -280,7 +283,10 @@ export default function MePage() {
                         {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
                       </Button>
                     </div>
-                    <p className="text-lg font-bold mt-0.5">{formatBalance(balance.toString())} <span className="text-sm font-normal opacity-80">NEX</span></p>
+                    <p className="text-lg font-bold mt-0.5">
+                      {formatBalance(balance.toString())} <span className="text-sm font-normal opacity-80">NEX</span>
+                      {balanceUsdt && <span className="text-sm font-normal opacity-70 ml-2">≈ ${formatUsdt(balanceUsdt)}</span>}
+                    </p>
                   </div>
                   <Button variant="ghost" size="icon" className="h-7 w-7 text-primary-foreground/70 hover:text-primary-foreground hover:bg-white/10"
                     onClick={(e) => { e.preventDefault(); handleRefresh(); }}>
@@ -355,7 +361,7 @@ export default function MePage() {
 
           {/* Treasury overview — entity owner only */}
           {isConnected && isEntityOwner && currentEntityId != null && (
-            <TreasuryCard entityId={currentEntityId} />
+            <TreasuryCard entityId={currentEntityId} entityName={entityName ?? undefined} />
           )}
 
           {/* ══════ Member Info + Referral Network (merged) ══════ */}

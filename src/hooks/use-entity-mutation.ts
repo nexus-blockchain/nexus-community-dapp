@@ -5,10 +5,15 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { ApiPromise } from '@polkadot/api';
 import { useApi } from '@/lib/chain';
 import { useWallet } from './use-wallet';
+import { useLocalWallet } from './use-local-wallet';
 import { useWalletStore } from '@/stores/wallet-store';
 import { useSigningStore } from '@/stores/signing-store';
 import type { TxState, ConfirmDialogConfig } from '@/lib/types';
 import { DANGEROUS_OPERATIONS } from '@/lib/chain/constants';
+import {
+  recordFailure,
+  recordSuccess,
+} from '@/lib/utils/brute-force-protection';
 
 interface UseEntityMutationOptions {
   onSuccess?: (blockHash: string) => void;
@@ -24,6 +29,7 @@ export function useEntityMutation(
 ) {
   const { api } = useApi();
   const { address, source, getSigner } = useWallet();
+  const { unlockWallet } = useLocalWallet();
   const isLocked = useWalletStore((s) => s.isLocked);
   const requestPassword = useSigningStore((s) => s.requestPassword);
   const queryClient = useQueryClient();
@@ -59,22 +65,17 @@ export function useEntityMutation(
         const tx = (api.tx as any)[palletName][callName](...params);
 
         if (source === 'local') {
-          // Local wallet: prompt for password, decrypt keypair, sign directly
+          // Local wallet: prompt for password, unlock keypair via shared utility
           const password = await requestPassword();
 
-          const { cryptoWaitReady } = await import('@polkadot/util-crypto');
-          const { Keyring } = await import('@polkadot/keyring');
-          const { useLocalAccountsStore } = await import('@/stores/local-accounts-store');
-
-          await cryptoWaitReady();
-          const accounts = useLocalAccountsStore.getState().accounts;
-          const account = accounts.find((a) => a.address === address);
-          if (!account) throw new Error('Local account not found');
-
-          const json = JSON.parse(account.encryptedJson);
-          const keyring = new Keyring({ type: 'sr25519', ss58Format: 273 });
-          const pair = keyring.addFromJson(json);
-          pair.decodePkcs8(password);
+          let pair;
+          try {
+            pair = await unlockWallet(address, password);
+          } catch {
+            recordFailure(address);
+            throw new Error('Wrong password');
+          }
+          recordSuccess(address);
 
           setTxState((prev) => ({ ...prev, status: 'broadcasting' }));
 
@@ -174,7 +175,7 @@ export function useEntityMutation(
         options?.onError?.(errorMsg);
       }
     },
-    [api, address, source, isLocked, getSigner, requestPassword, palletName, callName, queryClient, options],
+    [api, address, source, isLocked, getSigner, unlockWallet, requestPassword, palletName, callName, queryClient, options],
   );
 
   return {

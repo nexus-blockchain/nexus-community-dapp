@@ -4,13 +4,19 @@ import { useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useApi } from '@/lib/chain';
 import { useWallet } from './use-wallet';
+import { useLocalWallet } from './use-local-wallet';
 import { useWalletStore } from '@/stores/wallet-store';
 import { useTransferHistoryStore } from '@/stores/transfer-history-store';
+import {
+  recordFailure,
+  recordSuccess,
+} from '@/lib/utils/brute-force-protection';
 import type { TxState } from '@/lib/types';
 
 export function useTransfer() {
   const { api } = useApi();
   const { address, source, getSigner } = useWallet();
+  const { unlockWallet } = useLocalWallet();
   const isLocked = useWalletStore((s) => s.isLocked);
   const queryClient = useQueryClient();
   const [txState, setTxState] = useState<TxState>({
@@ -47,20 +53,15 @@ export function useTransfer() {
         const tx = api.tx.balances.transferKeepAlive(to, amount);
 
         if (source === 'local' && password) {
-          // Local wallet: sign with keypair directly
-          const { cryptoWaitReady } = await import('@polkadot/util-crypto');
-          const { Keyring } = await import('@polkadot/keyring');
-          const { useLocalAccountsStore } = await import('@/stores/local-accounts-store');
-
-          await cryptoWaitReady();
-          const accounts = useLocalAccountsStore.getState().accounts;
-          const account = accounts.find((a) => a.address === address);
-          if (!account) throw new Error('Local account not found');
-
-          const json = JSON.parse(account.encryptedJson);
-          const keyring = new Keyring({ type: 'sr25519', ss58Format: 273 });
-          const pair = keyring.addFromJson(json);
-          pair.decodePkcs8(password);
+          // Local wallet: unlock keypair via shared utility
+          let pair;
+          try {
+            pair = await unlockWallet(address, password);
+          } catch {
+            recordFailure(address);
+            throw new Error('Wrong password');
+          }
+          recordSuccess(address);
 
           setTxState((prev) => ({ ...prev, status: 'broadcasting' }));
 
@@ -135,7 +136,7 @@ export function useTransfer() {
         }
       }
     },
-    [api, address, source, isLocked, getSigner, refreshBalance, txState.status],
+    [api, address, source, isLocked, getSigner, unlockWallet, refreshBalance, txState.status],
   );
 
   return { transfer, txState, reset };
