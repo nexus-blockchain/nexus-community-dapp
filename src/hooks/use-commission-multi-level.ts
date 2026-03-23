@@ -15,6 +15,7 @@ export {
   useMultiLevelPaused,
   useMultiLevelMemberStats,
   useMultiLevelEntityStats,
+  useMultiLevelSummaryStats,
 } from './use-commission';
 
 // ======================== Pending Config ========================
@@ -110,7 +111,7 @@ export function useMultiLevelEntityOverview(entityId: number | null) {
         config,
         isPaused,
         totalDistributed: String(stats?.totalDistributed ?? stats?.total_distributed ?? '0'),
-        totalOrders: stats?.totalOrders ?? stats?.total_orders ?? 0,
+        orderCount: stats?.orderCount ?? stats?.order_count ?? 0,
         totalDistributionEntries: stats?.totalDistributionEntries ?? stats?.total_distribution_entries ?? 0,
         pendingConfig,
       };

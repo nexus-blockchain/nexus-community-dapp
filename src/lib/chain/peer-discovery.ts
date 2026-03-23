@@ -30,11 +30,16 @@ export function extractIpFromMultiaddr(addr: string): string | null {
   const match = addr.match(/\/ip4\/([\d.]+)\//);
   if (!match) return null;
   const ip = match[1];
-  // Filter loopback, unspecified, link-local
+  const parts = ip.split('.').map(Number);
+  // Filter loopback, unspecified, link-local, and RFC1918 private ranges
   if (
     ip.startsWith('127.') ||
     ip === '0.0.0.0' ||
-    ip.startsWith('169.254.')
+    ip.startsWith('169.254.') ||
+    ip.startsWith('10.') ||
+    (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
+    ip.startsWith('192.168.') ||
+    (parts[0] === 100 && parts[1] >= 64 && parts[1] <= 127)
   ) {
     return null;
   }

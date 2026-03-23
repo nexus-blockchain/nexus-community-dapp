@@ -14,10 +14,12 @@ export const useSigningStore = create<SigningState>((set, get) => ({
   _resolve: null,
   _reject: null,
 
-  requestPassword: () =>
-    new Promise<string>((resolve, reject) => {
+  requestPassword: () => {
+    if (get()._reject) { get()._reject!('cancelled'); }
+    return new Promise<string>((resolve, reject) => {
       set({ isOpen: true, _resolve: resolve, _reject: reject });
-    }),
+    });
+  },
 
   submitPassword: (password: string) => {
     const { _resolve } = get();

@@ -11,6 +11,7 @@ export interface TransferRecord {
 
 const STORAGE_KEY = 'nexus_transfer_history';
 const MAX_RECORDS_PER_ADDRESS = 100;
+const MAX_TOTAL_RECORDS = 500;
 
 function loadAll(): Record<string, TransferRecord[]> {
   if (typeof window === 'undefined') return {};
@@ -22,8 +23,29 @@ function loadAll(): Record<string, TransferRecord[]> {
   }
 }
 
+function pruneIfOverLimit(data: Record<string, TransferRecord[]>) {
+  let total = 0;
+  for (const records of Object.values(data)) total += records.length;
+  while (total > MAX_TOTAL_RECORDS) {
+    // Find the address with the most records and remove its oldest entry
+    let maxKey = '';
+    let maxLen = 0;
+    for (const [key, records] of Object.entries(data)) {
+      if (records.length > maxLen) {
+        maxLen = records.length;
+        maxKey = key;
+      }
+    }
+    if (!maxKey || maxLen === 0) break;
+    data[maxKey].pop(); // remove oldest (last element, since newest are first)
+    if (data[maxKey].length === 0) delete data[maxKey];
+    total--;
+  }
+}
+
 function saveAll(data: Record<string, TransferRecord[]>) {
   if (typeof window === 'undefined') return;
+  pruneIfOverLimit(data);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 }
 

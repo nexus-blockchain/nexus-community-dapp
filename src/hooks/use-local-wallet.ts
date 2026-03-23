@@ -5,6 +5,7 @@ import { Keyring } from '@polkadot/keyring';
 import { mnemonicGenerate, mnemonicValidate, cryptoWaitReady } from '@polkadot/util-crypto';
 import type { KeyringPair, KeyringPair$Json } from '@polkadot/keyring/types';
 import { useLocalAccountsStore, type LocalAccount } from '@/stores/local-accounts-store';
+import { encryptMnemonic, decryptMnemonic } from '@/lib/utils/mnemonic-crypto';
 
 const SS58_FORMAT = 273;
 
@@ -25,11 +26,13 @@ export function useLocalWallet() {
       const keyring = getKeyring();
       const pair = keyring.addFromMnemonic(mnemonic, { name }, 'sr25519');
       const json = pair.toJson(password);
+      const encMnemonic = await encryptMnemonic(mnemonic, password);
 
       const account: LocalAccount = {
         address: pair.address,
         name,
         encryptedJson: JSON.stringify(json),
+        encryptedMnemonic: encMnemonic,
         createdAt: Date.now(),
       };
       addAccount(account);
@@ -64,11 +67,13 @@ export function useLocalWallet() {
       }
 
       const json = pair.toJson(password);
+      const encMnemonic = await encryptMnemonic(trimmed, password);
 
       const account: LocalAccount = {
         address: pair.address,
         name,
         encryptedJson: JSON.stringify(json),
+        encryptedMnemonic: encMnemonic,
         createdAt: Date.now(),
       };
       addAccount(account);
@@ -116,10 +121,28 @@ export function useLocalWallet() {
     [unlockWallet],
   );
 
+  /** Export the mnemonic for a local wallet (decrypt with password) */
+  const exportMnemonic = useCallback(
+    async (address: string, password: string): Promise<string> => {
+      hydrate();
+      const accounts = useLocalAccountsStore.getState().accounts;
+      const account = accounts.find((a) => a.address === address);
+      if (!account) throw new Error('Local account not found');
+      if (!account.encryptedMnemonic) throw new Error('MNEMONIC_NOT_STORED');
+
+      // Verify password is correct by attempting to unlock the keypair first
+      await unlockWallet(address, password);
+
+      return decryptMnemonic(account.encryptedMnemonic, password);
+    },
+    [hydrate, unlockWallet],
+  );
+
   return {
     createWallet,
     importWallet,
     unlockWallet,
     getLocalSigner,
+    exportMnemonic,
   };
 }

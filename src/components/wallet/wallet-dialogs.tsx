@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
+import { copyToClipboard, readFromClipboard } from '@/lib/utils/clipboard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -59,7 +60,7 @@ export function TransferDialog({ open, onOpenChange }: { open: boolean; onOpenCh
   const handleOpenChange = (v: boolean) => { if (!v) resetState(); onOpenChange(v); };
 
   const handlePaste = async () => {
-    try { const text = await navigator.clipboard.readText(); setRecipient(text.trim()); } catch {}
+    try { const text = await readFromClipboard(); if (text) setRecipient(text.trim()); } catch {}
   };
 
   const handleMax = () => {
@@ -128,7 +129,7 @@ export function TransferDialog({ open, onOpenChange }: { open: boolean; onOpenCh
             {isLocal && (
               <div>
                 <label className="text-sm font-medium">{t('walletPassword')}</label>
-                <Input type="password" placeholder={t('walletPasswordPlaceholder')} value={password}
+                <Input type="password" autoComplete="off" placeholder={t('walletPasswordPlaceholder')} value={password}
                   onChange={(e) => setPassword(e.target.value)} className="mt-1" disabled={isProcessing} />
               </div>
             )}
@@ -154,12 +155,11 @@ export function ReceiveDialog({ open, onOpenChange }: { open: boolean; onOpenCha
   const { address } = useWalletStore();
   const [copied, setCopied] = useState(false);
 
-  const handleCopy = () => {
-    if (address) {
-      navigator.clipboard.writeText(address);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
+  const handleCopy = async () => {
+    if (!address) return;
+    await copyToClipboard(address);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (

@@ -108,6 +108,7 @@ export function UnlockDialog() {
           <div>
             <Input
               type="password"
+              autoComplete="off"
               placeholder={t('walletPasswordPlaceholder')}
               value={password}
               onChange={(e) => { setPassword(e.target.value); setError(''); }}

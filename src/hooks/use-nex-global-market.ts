@@ -111,8 +111,8 @@ export function useNexOrderBook() {
       ]);
 
       // Sort: buy descending by price, sell ascending by price
-      buyOrders.sort((a, b) => Number(BigInt(b.price) - BigInt(a.price)));
-      sellOrders.sort((a, b) => Number(BigInt(a.price) - BigInt(b.price)));
+      buyOrders.sort((a, b) => { const diff = BigInt(b.price) - BigInt(a.price); return diff < BigInt(0) ? -1 : diff > BigInt(0) ? 1 : 0; });
+      sellOrders.sort((a, b) => { const diff = BigInt(a.price) - BigInt(b.price); return diff < BigInt(0) ? -1 : diff > BigInt(0) ? 1 : 0; });
 
       return { buyOrders, sellOrders };
     },
@@ -310,7 +310,7 @@ export function useNexOrderBookDepth() {
       acc.push({ price: o.price, totalAmount: remaining, orderCount: 1, cumulative: BigInt(0), hasSeedOrder: o.depositWaived });
     }
     return acc;
-  }, []).sort((a, b) => Number(BigInt(a.price) - BigInt(b.price)));
+  }, []).sort((a, b) => { const diff = BigInt(a.price) - BigInt(b.price); return diff < BigInt(0) ? -1 : diff > BigInt(0) ? 1 : 0; });
 
   const bids = buyOrders.reduce<NexDepthLevel[]>((acc, o) => {
     const remaining = BigInt(o.amount) - BigInt(o.filled);
@@ -324,7 +324,7 @@ export function useNexOrderBookDepth() {
       acc.push({ price: o.price, totalAmount: remaining, orderCount: 1, cumulative: BigInt(0), hasSeedOrder: o.depositWaived });
     }
     return acc;
-  }, []).sort((a, b) => Number(BigInt(b.price) - BigInt(a.price)));
+  }, []).sort((a, b) => { const diff = BigInt(b.price) - BigInt(a.price); return diff < BigInt(0) ? -1 : diff > BigInt(0) ? 1 : 0; });
 
   // Compute cumulative depths
   let askCum = BigInt(0);

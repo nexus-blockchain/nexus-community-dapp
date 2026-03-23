@@ -10,7 +10,7 @@ import { UnlockDialog } from '@/components/wallet/unlock-dialog';
 import { SigningDialog } from '@/components/wallet/signing-dialog';
 import { useAutoLock } from '@/hooks/use-auto-lock';
 import { useLocaleStore } from '@/stores/locale-store';
-import { getMessages, type Locale } from '@/i18n/config';
+import { getMessages, defaultMessages, defaultLocale, type Locale } from '@/i18n/config';
 
 // Pre-warm WASM crypto so wallet creation/import is instant
 cryptoWaitReady().catch(() => {});
@@ -40,17 +40,25 @@ function getQueryClient() {
 
 function IntlProvider({ children }: { children: React.ReactNode }) {
   const locale = useLocaleStore((s) => s.locale);
-  const [messages, setMessages] = useState<Record<string, any> | null>(null);
-  const [currentLocale, setCurrentLocale] = useState<Locale>(locale);
+  // Start with synchronous default messages so the first paint is never blank
+  const [messages, setMessages] = useState<Record<string, any>>(defaultMessages);
+  const [currentLocale, setCurrentLocale] = useState<Locale>(defaultLocale);
+
+  // Keep <html lang> in sync with the selected locale
+  useEffect(() => { document.documentElement.lang = locale; }, [locale]);
 
   useEffect(() => {
+    // Only fetch asynchronously when locale differs from the default
+    if (locale === defaultLocale) {
+      setMessages(defaultMessages);
+      setCurrentLocale(defaultLocale);
+      return;
+    }
     getMessages(locale).then((msgs) => {
       setMessages(msgs);
       setCurrentLocale(locale);
     });
   }, [locale]);
-
-  if (!messages) return null;
 
   return (
     <NextIntlClientProvider locale={currentLocale} messages={messages}>

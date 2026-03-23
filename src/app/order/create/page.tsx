@@ -36,11 +36,12 @@ function OrderCreateContent() {
   const tTx = useTranslations('tx');
   const router = useRouter();
   const searchParams = useSearchParams();
-  const productId = Number(searchParams.get('product') || 0);
+  const productParam = searchParams.get('product');
+  const productId = productParam != null ? Number(productParam) : null;
   const quantity = Number(searchParams.get('quantity') || 1);
   const { address } = useWalletStore();
   const { currentEntityId } = useEntityStore();
-  const { data: product, isLoading } = useProduct(productId || null);
+  const { data: product, isLoading } = useProduct(productId != null && !isNaN(productId) ? productId : null);
   const { data: productName } = useIpfsContent(product?.nameCid);
   const { data: shoppingBalanceRaw } = useShoppingBalance(currentEntityId, address);
   const { toNex, toUsdt } = useNexPrice();
@@ -83,7 +84,7 @@ function OrderCreateContent() {
 
   const handleSubmit = async () => {
     if (!product || !address) return;
-    if (referrer && !isValidSS58(referrer)) return;
+    if (referrer && !(await isValidSS58(referrer))) return;
     await mutate([
       product.id,                          // product_id
       quantity,                            // quantity

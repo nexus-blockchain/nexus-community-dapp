@@ -4,6 +4,7 @@ export interface LocalAccount {
   address: string;
   name: string;
   encryptedJson: string; // JSON-stringified KeyringPair$Json
+  encryptedMnemonic?: string; // AES-GCM encrypted, base64 encoded
   createdAt: number;
 }
 

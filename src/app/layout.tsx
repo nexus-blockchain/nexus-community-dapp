@@ -24,6 +24,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="zh" suppressHydrationWarning>
+      <head>
+        <meta httpEquiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss: https:; img-src 'self' data: blob: https:; font-src 'self' data:;" />
+      </head>
       <body className="min-h-screen bg-background font-sans antialiased">
         <Providers>
           <div className="flex min-h-screen flex-col">

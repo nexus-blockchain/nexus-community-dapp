@@ -10,9 +10,10 @@ interface ProductImageProps {
   cid: string | null;
   className?: string;
   iconSize?: string;
+  alt?: string;
 }
 
-export function ProductImage({ cid, className, iconSize = 'h-10 w-10' }: ProductImageProps) {
+export function ProductImage({ cid, className, iconSize = 'h-10 w-10', alt = '' }: ProductImageProps) {
   const [failed, setFailed] = useState(false);
   const src = ipfsUrl(cid);
 
@@ -23,7 +24,7 @@ export function ProductImage({ cid, className, iconSize = 'h-10 w-10' }: Product
   return (
     <Image
       src={src}
-      alt=""
+      alt={alt}
       fill
       unoptimized
       className={cn('rounded-lg object-cover', className)}

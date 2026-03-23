@@ -14,17 +14,20 @@ export function useCurrentBlock(): number | null {
   useEffect(() => {
     if (!api || !isReady) return;
 
+    let cancelled = false;
     let unsub: (() => void) | undefined;
 
     api.rpc.chain.subscribeNewHeads((header) => {
-      setBlockNumber(header.number.toNumber());
+      if (!cancelled) setBlockNumber(header.number.toNumber());
     }).then((u) => {
       unsub = u;
+      if (cancelled) u();
     }).catch(() => {
       // Subscription failed — try polling fallback
     });
 
     return () => {
+      cancelled = true;
       unsub?.();
     };
   }, [api, isReady]);

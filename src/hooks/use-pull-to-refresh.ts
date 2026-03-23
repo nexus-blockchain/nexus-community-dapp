@@ -30,6 +30,8 @@ export function usePullToRefresh({
   const startY = useRef(0);
   const currentY = useRef(0);
   const pulling = useRef(false);
+  const pullStateRef = useRef(pullState);
+  useEffect(() => { pullStateRef.current = pullState; }, [pullState]);
 
   const handleRefresh = useCallback(async () => {
     setPullState('refreshing');
@@ -81,7 +83,7 @@ export function usePullToRefresh({
       if (!pulling.current) return;
       pulling.current = false;
 
-      if (pullState === 'ready') {
+      if (pullStateRef.current === 'ready') {
         handleRefresh();
       } else {
         setPullState('idle');

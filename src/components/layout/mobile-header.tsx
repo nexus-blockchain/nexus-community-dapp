@@ -17,13 +17,16 @@ export function MobileHeader({ title, className, right, showBack }: MobileHeader
   return (
     <header
       className={cn(
-        'sticky top-0 z-40 flex h-12 items-center justify-between border-b border-border bg-white/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-white/85',
+        'sticky top-0 z-40 flex h-12 items-center justify-between border-b border-border bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/85',
         className
       )}
     >
       <div className="flex items-center gap-1">
         {showBack && (
-          <button type="button" className="-ml-2 p-1 text-muted-foreground" onClick={() => router.back()}>
+          <button type="button" className="-ml-2 p-2.5 text-muted-foreground" onClick={() => {
+            if (window.history.length > 1) router.back();
+            else router.push('/');
+          }}>
             <ChevronLeft className="h-5 w-5" />
           </button>
         )}

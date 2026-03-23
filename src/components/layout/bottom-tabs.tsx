@@ -28,7 +28,7 @@ export function BottomTabs() {
   const t = useTranslations('nav');
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/85">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85">
       <div className="flex h-16 items-center justify-around px-2 pb-safe">
         {tabDefs.map((tab) => {
           const isActive = activeTab === tab.id;

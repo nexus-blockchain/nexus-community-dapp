@@ -87,6 +87,7 @@ export function SigningDialog() {
         <div className="space-y-4 pt-2">
           <Input
             type="password"
+            autoComplete="off"
             placeholder={t('walletPasswordPlaceholder')}
             value={password}
             onChange={(e) => { setPassword(e.target.value); setError(''); }}

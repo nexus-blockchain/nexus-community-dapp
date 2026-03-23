@@ -65,7 +65,7 @@ export function OrderBook({ asks, bids, maxDepth, lastPrice, isLoading, onPriceC
             visibleAsks.map((level) => (
               <div
                 key={level.price}
-                className="relative flex cursor-pointer items-center justify-between rounded px-1.5 py-0.5 text-xs hover:bg-destructive/20"
+                className="relative flex cursor-pointer items-center justify-between rounded px-1.5 py-0.5 text-xs hover:bg-destructive/20 active:bg-destructive/30"
                 onClick={() => onPriceClick?.(level.price)}
               >
                 {/* Depth bar background */}
@@ -109,7 +109,7 @@ export function OrderBook({ asks, bids, maxDepth, lastPrice, isLoading, onPriceC
             visibleBids.map((level) => (
               <div
                 key={level.price}
-                className="relative flex cursor-pointer items-center justify-between rounded px-1.5 py-0.5 text-xs hover:bg-success/20"
+                className="relative flex cursor-pointer items-center justify-between rounded px-1.5 py-0.5 text-xs hover:bg-success/20 active:bg-success/30"
                 onClick={() => onPriceClick?.(level.price)}
               >
                 <div

@@ -153,6 +153,42 @@ export interface PointsConfig {
 }
 
 // ---------------------------------------------------------------------------
+// Commission Core — Order-Level Records
+// ---------------------------------------------------------------------------
+
+/** Commission type as stored on-chain */
+export type CommissionType =
+  | 'DirectReward'
+  | 'MultiLevel'
+  | 'TeamPerformance'
+  | 'LevelDiff'
+  | 'FixedAmount'
+  | 'FirstOrder'
+  | 'RepeatPurchase'
+  | 'SingleLineUpline'
+  | 'SingleLineDownline'
+  | 'EntityReferral'
+  | 'PoolReward'
+  | 'CreatorReward';
+
+/** Commission record status */
+export type CommissionStatus = 'Pending' | 'Settled' | 'Cancelled' | 'Distributed';
+
+/** Per-order commission record from commissionCore.orderCommissionRecords */
+export interface CommissionRecord {
+  entityId: number;
+  shopId: number;
+  orderId: number;
+  buyer: string;
+  beneficiary: string;
+  amount: string;
+  commissionType: CommissionType;
+  level: number;
+  status: CommissionStatus;
+  createdAt: number;
+}
+
+// ---------------------------------------------------------------------------
 // Commission - Single Line
 // ---------------------------------------------------------------------------
 export interface SingleLineConfig {
@@ -165,6 +201,22 @@ export interface SingleLineConfig {
   maxDownlineLevels: number;
 }
 
+export interface SingleLinePayoutRecord {
+  orderId: number;
+  amount: string;
+  direction: 'Upline' | 'Downline';
+  buyer: string;
+  levelDistance: number;
+  blockNumber: number;
+}
+
+export interface MemberSingleLineSummary {
+  totalEarnedAsUpline: string;
+  totalEarnedAsDownline: string;
+  totalPayoutCount: number;
+  lastPayoutBlock: number;
+}
+
 // ---------------------------------------------------------------------------
 // Commission - Multi Level
 // ---------------------------------------------------------------------------
@@ -174,6 +226,22 @@ export interface MultiLevelTier {
   requiredTeamSize: number;
   requiredSpent: string;
   requiredLevelId: number;
+}
+
+export interface MultiLevelPayoutRecord {
+  buyer: string;
+  orderId: number;
+  amount: string;
+  /** Referral chain level (1=L1, 2=L2, ...) */
+  level: number;
+  blockNumber: number;
+}
+
+/** MemberMultiLevelSummaryStats — aggregated payout summary per member */
+export interface MultiLevelSummaryStats {
+  totalEarned: string;
+  totalPayoutCount: number;
+  lastPayoutBlock: number;
 }
 
 export interface MultiLevelConfig {
@@ -208,7 +276,7 @@ export interface MultiLevelEntityOverview {
   config: MultiLevelConfig | null;
   isPaused: boolean;
   totalDistributed: string;
-  totalOrders: number;
+  orderCount: number;
   totalDistributionEntries: number;
   pendingConfig: MultiLevelPendingConfig | null;
 }
@@ -244,6 +312,84 @@ export interface PoolRewardConfig {
   levelRatios: [number, number][];
   roundDuration: number;
   tokenPoolEnabled: boolean;
+}
+
+/** Funding source types for pool reward */
+export type FundingSource =
+  | 'OrderCommissionRemainder'
+  | 'TokenPlatformFeeRetention'
+  | 'TokenCommissionRemainder'
+  | 'CancelReturn';
+
+/** Per-round funding summary */
+export interface RoundFundingSummary {
+  nexCommissionRemainder: string;
+  tokenPlatformFeeRetention: string;
+  tokenCommissionRemainder: string;
+  nexCancelReturn: string;
+  totalFundingCount: number;
+}
+
+/** Completed round summary (from RoundHistory storage) */
+export interface CompletedRoundSummary {
+  roundId: number;
+  startBlock: number;
+  endBlock: number;
+  poolSnapshot: string;
+  tokenPoolSnapshot: string | null;
+  levelSnapshots: LevelSnapshot[];
+  tokenLevelSnapshots: LevelSnapshot[] | null;
+  fundingSummary: RoundFundingSummary;
+}
+
+/** Individual pool funding record */
+export interface PoolFundingRecord {
+  source: FundingSource;
+  nexAmount: string;
+  tokenAmount: string;
+  orderId: number;
+  blockNumber: number;
+}
+
+/** Pool Reward member view from runtime API */
+export interface PoolRewardMemberView {
+  roundDuration: number;
+  tokenPoolEnabled: boolean;
+  levelRatios: [number, number][];
+  currentRoundId: number;
+  roundStartBlock: number;
+  roundEndBlock: number;
+  poolSnapshot: string;
+  tokenPoolSnapshot: string | null;
+  effectiveLevel: number;
+  claimableNex: string;
+  claimableToken: string;
+  alreadyClaimed: boolean;
+  roundExpired: boolean;
+  lastClaimedRound: number;
+  levelProgress: LevelProgressInfo[];
+  tokenLevelProgress: LevelProgressInfo[] | null;
+  claimHistory: ClaimRecordInfo[];
+  isPaused: boolean;
+  hasPendingConfig: boolean;
+}
+
+/** Level progress info from runtime API */
+export interface LevelProgressInfo {
+  levelId: number;
+  ratioBps: number;
+  memberCount: number;
+  claimedCount: number;
+  perMemberReward: string;
+}
+
+/** Claim record info from runtime API (enriched) */
+export interface ClaimRecordInfo {
+  roundId: number;
+  amount: string;
+  tokenAmount: string;
+  levelId: number;
+  claimedAt: number;
 }
 
 // ---------------------------------------------------------------------------

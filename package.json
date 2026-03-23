@@ -9,9 +9,14 @@
     "lint": "next lint",
     "test": "vitest --run",
     "test:watch": "vitest",
-    "test:coverage": "vitest --run --coverage"
+    "test:coverage": "vitest --run --coverage",
+    "build:android": "next build && node scripts/cap-spa-fix.js && npx cap sync",
+    "open:android": "npx cap open android"
   },
   "dependencies": {
+    "@capacitor/android": "^8.2.0",
+    "@capacitor/clipboard": "^8.0.1",
+    "@capacitor/core": "^8.2.0",
     "@polkadot/api": "^16.5.4",
     "@polkadot/extension-dapp": "^0.62.6",
     "@polkadot/keyring": "^14.0.2",
@@ -39,6 +44,7 @@
     "zustand": "^5.0.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.2.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@types/node": "^22",

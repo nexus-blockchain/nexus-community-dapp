@@ -3,6 +3,7 @@
 import { useTranslations } from 'next-intl';
 import { ArrowDownUp, Send, CheckCircle, Loader2, Copy, Check, Clock, Lock } from 'lucide-react';
 import { useState, useCallback } from 'react';
+import { copyToClipboard } from '@/lib/utils/clipboard';
 import { HelpTip } from '@/components/ui/help-tip';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -83,7 +84,7 @@ function ActiveTradeCard({ trade, address }: { trade: NexMarketTrade; address: s
 
   const handleCopy = useCallback(async () => {
     if (!tronToPay) return;
-    await navigator.clipboard.writeText(tronToPay);
+    await copyToClipboard(tronToPay);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }, [tronToPay]);
@@ -130,7 +131,7 @@ function ActiveTradeCard({ trade, address }: { trade: NexMarketTrade; address: s
           <Button
             variant="ghost"
             size="icon"
-            className="h-5 w-5"
+            className="h-8 w-8"
             onClick={handleCopy}
           >
             {copied ? <Check className="h-3 w-3 text-success" /> : <Copy className="h-3 w-3" />}

@@ -86,17 +86,18 @@ export function useMemberCount(entityId: number | null) {
 
 /** Check which entity IDs the current account is a member of */
 export function useMyMemberships(entityIds: number[], address: string | null) {
-  return useEntityQuery<Set<number>>(
+  return useEntityQuery<number[]>(
     ['myMemberships', entityIds, address],
     async (api) => {
-      if (!address || entityIds.length === 0) return new Set<number>();
+      if (!address || entityIds.length === 0) return [];
       const results = await Promise.all(
         entityIds.map(async (id) => {
           const raw = await (api.query as any).entityMember.entityMembers(id, address);
           return raw.isNone ? null : id;
         }),
       );
-      return new Set(results.filter((id): id is number => id !== null));
+      const memberEntityIds = new Set(results.filter((id): id is number => id !== null));
+      return Array.from(memberEntityIds);
     },
     {
       staleTime: STALE_TIMES.members,

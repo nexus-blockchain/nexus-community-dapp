@@ -5,8 +5,8 @@
  * - After 10 consecutive failures: locked for 5 minutes
  * - Successful attempt resets the counter
  *
- * State is kept per-address in memory (resets on page refresh, which is acceptable
- * since the encrypted keystore itself is the primary defence).
+ * State is kept per-address and persisted to sessionStorage so it survives
+ * page refreshes within the same tab session.
  */
 
 interface AttemptState {
@@ -14,7 +14,23 @@ interface AttemptState {
   lockedUntil: number | null; // timestamp ms
 }
 
-const attempts = new Map<string, AttemptState>();
+const STORAGE_KEY = 'bf_attempts';
+
+function loadAttempts(): Map<string, AttemptState> {
+  try {
+    if (typeof window === 'undefined') return new Map();
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    return raw ? new Map(JSON.parse(raw)) : new Map();
+  } catch { return new Map(); }
+}
+
+function saveAttempts() {
+  try {
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(attempts.entries())));
+  } catch {}
+}
+
+const attempts = loadAttempts();
 
 const DELAY_THRESHOLD = 5;
 const LOCKOUT_THRESHOLD = 10;
@@ -51,6 +67,7 @@ export function checkAttemptAllowed(address: string): BruteForceCheck {
   if (state.lockedUntil && now >= state.lockedUntil) {
     state.failures = 0;
     state.lockedUntil = null;
+    saveAttempts();
   }
 
   // Check exponential delay (after DELAY_THRESHOLD failures)
@@ -76,11 +93,13 @@ export function recordFailure(address: string): void {
   if (state.failures >= LOCKOUT_THRESHOLD) {
     state.lockedUntil = Date.now() + LOCKOUT_DURATION_MS;
   }
+  saveAttempts();
 }
 
 /** Record a successful attempt (resets the counter). */
 export function recordSuccess(address: string): void {
   attempts.delete(address);
+  saveAttempts();
 }
 
 /** Get the current failure count for display purposes. */

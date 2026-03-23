@@ -15,11 +15,13 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
-import { Globe, Building2, CheckCircle2, Loader2, ChevronRight } from 'lucide-react';
+import { Globe, Building2, CheckCircle2, Loader2, ChevronRight, Radio, Zap } from 'lucide-react';
 import { useLocaleStore } from '@/stores/locale-store';
 import { useWalletStore, useEntityStore } from '@/stores';
 import { useAllEntities } from '@/hooks/use-entity';
 import { useMember, useMyMemberships, useRegisterMember } from '@/hooks/use-member';
+import { useApi } from '@/lib/chain';
+import { useNodeHealthStore, type NodeStatus } from '@/stores/node-health-store';
 import { locales, type Locale } from '@/i18n/config';
 
 const LOCALE_LABELS: Record<Locale, string> = {
@@ -27,8 +29,16 @@ const LOCALE_LABELS: Record<Locale, string> = {
   en: 'English',
 };
 
+const STATUS_VARIANT: Record<NodeStatus, 'success' | 'warning' | 'destructive' | 'secondary'> = {
+  healthy: 'success',
+  slow: 'warning',
+  unhealthy: 'destructive',
+  unknown: 'secondary',
+};
+
 export default function SettingsPage() {
   const t = useTranslations('settings');
+  const tc = useTranslations('chainInfo');
   const { locale, setLocale } = useLocaleStore();
   const { address } = useWalletStore();
   const { currentEntityId, entityName, setEntity } = useEntityStore();
@@ -37,6 +47,12 @@ export default function SettingsPage() {
   const entityIds = entities?.map((e) => e.id) ?? [];
   const { data: myMemberships } = useMyMemberships(entityIds, address);
   const registerMember = useRegisterMember();
+
+  const { activeEndpoint, switchNode } = useApi();
+  const nodes = useNodeHealthStore((s) => s.nodes);
+  const preferredEndpoint = useNodeHealthStore((s) => s.preferredEndpoint);
+  const setPreferredEndpoint = useNodeHealthStore((s) => s.setPreferredEndpoint);
+  const healthyCount = nodes.filter((n) => n.status === 'healthy').length;
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [joiningEntityId, setJoiningEntityId] = useState<number | null>(null);
@@ -127,6 +143,114 @@ export default function SettingsPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Node management section */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between text-base">
+                <span className="flex items-center gap-2">
+                  <Radio className="h-4 w-4" />
+                  {t('nodeManagement')}
+                </span>
+                <Badge variant="secondary" className="text-xs">
+                  {t('nodeCount', { healthy: healthyCount, total: nodes.length })}
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-muted-foreground">{t('nodeManagementDesc')}</p>
+
+              {/* Active node indicator */}
+              {activeEndpoint && (
+                <div className="flex items-center justify-between rounded-lg bg-primary/5 border border-primary/30 p-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <Zap className="h-3.5 w-3.5 shrink-0 text-primary" />
+                      <span className="text-xs text-muted-foreground">{t('activeNode')}</span>
+                      <Badge variant={preferredEndpoint ? 'outline' : 'secondary'} className="text-[10px]">
+                        {preferredEndpoint ? t('userSelected') : t('autoSelected')}
+                      </Badge>
+                    </div>
+                    <p className="mt-1 truncate font-mono text-xs">{activeEndpoint}</p>
+                  </div>
+                  {preferredEndpoint && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="shrink-0 text-xs"
+                      onClick={() => setPreferredEndpoint(null)}
+                    >
+                      {t('resetAuto')}
+                    </Button>
+                  )}
+                </div>
+              )}
+
+              {/* Node list */}
+              {nodes.length === 0 ? (
+                <p className="py-4 text-center text-sm text-muted-foreground">{t('noNodes')}</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {[...nodes]
+                    .sort((a, b) => {
+                      // Active first, then by status priority, then by latency
+                      if (a.endpoint === activeEndpoint) return -1;
+                      if (b.endpoint === activeEndpoint) return 1;
+                      const statusOrder: Record<NodeStatus, number> = { healthy: 0, slow: 1, unknown: 2, unhealthy: 3 };
+                      const sa = statusOrder[a.status];
+                      const sb = statusOrder[b.status];
+                      if (sa !== sb) return sa - sb;
+                      return (a.latencyMs ?? Infinity) - (b.latencyMs ?? Infinity);
+                    })
+                    .map((node) => {
+                      const isActive = node.endpoint === activeEndpoint;
+                      return (
+                        <button
+                          key={node.endpoint}
+                          className={`flex w-full items-center gap-2 rounded-lg border p-2.5 text-left transition-colors ${
+                            isActive
+                              ? 'border-primary/50 bg-primary/5'
+                              : 'border-border hover:border-primary/30 hover:bg-secondary'
+                          }`}
+                          onClick={() => {
+                            if (!isActive) {
+                              switchNode(node.endpoint);
+                            }
+                          }}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className="min-w-0 flex-1 truncate font-mono text-[11px]">
+                                {node.endpoint}
+                              </span>
+                              <Badge variant={STATUS_VARIANT[node.status]} className="shrink-0 text-[10px]">
+                                {tc(node.status)}
+                              </Badge>
+                            </div>
+                            <div className="mt-1 flex flex-wrap items-center gap-x-3 text-[10px] text-muted-foreground">
+                              {node.latencyMs != null && (
+                                <span>{t('latencyMs', { ms: node.latencyMs })}</span>
+                              )}
+                              {node.blockHeight != null && (
+                                <span>{t('blockHeight', { height: node.blockHeight.toLocaleString() })}</span>
+                              )}
+                              <span>
+                                {node.source === 'seed' && tc('seed')}
+                                {node.source === 'discovered' && tc('discovered')}
+                                {node.source === 'manual' && tc('manual')}
+                              </span>
+                              {isActive && (
+                                <CheckCircle2 className="h-3 w-3 text-primary" />
+                              )}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </PageContainer>
 
@@ -164,7 +288,7 @@ export default function SettingsPage() {
                         setDialogOpen(false);
                         return;
                       }
-                      if (!address || myMemberships?.has(entity.id)) {
+                      if (!address || myMemberships?.includes(entity.id)) {
                         handleSelectEntity(entity.id, entity.name);
                       } else {
                         handleJoinEntity(entity.id, entity.name);

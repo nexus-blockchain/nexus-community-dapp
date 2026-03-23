@@ -1,7 +1,10 @@
 'use client';
 
-import { redirect } from 'next/navigation';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function MemberInvitePage() {
-  redirect('/member/network');
+  const router = useRouter();
+  useEffect(() => { router.replace('/member/network'); }, [router]);
+  return null;
 }

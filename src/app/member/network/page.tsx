@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { copyToClipboard } from '@/lib/utils/clipboard';
 import { MobileHeader } from '@/components/layout/mobile-header';
 import { PageContainer } from '@/components/layout/page-container';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -173,12 +174,7 @@ function InviteTab({ t }: { t: ReturnType<typeof useTranslations> }) {
 
   const handleCopy = () => {
     if (!inviteLink) return;
-    if (navigator.clipboard?.writeText) {
-      navigator.clipboard.writeText(inviteLink);
-    } else {
-      const ta = Object.assign(document.createElement('textarea'), { value: inviteLink, style: 'position:fixed;opacity:0' });
-      document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
-    }
+    copyToClipboard(inviteLink);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };

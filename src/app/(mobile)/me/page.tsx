@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
+import { copyToClipboard } from '@/lib/utils/clipboard';
 import { useQueryClient } from '@tanstack/react-query';
 import { MobileHeader } from '@/components/layout/mobile-header';
 import { PageContainer } from '@/components/layout/page-container';
@@ -227,12 +228,7 @@ export default function MePage() {
 
   const handleCopy = () => {
     if (!address) return;
-    if (navigator.clipboard?.writeText) {
-      navigator.clipboard.writeText(address);
-    } else {
-      const ta = Object.assign(document.createElement('textarea'), { value: address, style: 'position:fixed;opacity:0' });
-      document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
-    }
+    copyToClipboard(address);
     setCopied(true); setTimeout(() => setCopied(false), 2000);
   };
 

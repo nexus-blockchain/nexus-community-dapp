@@ -1,14 +1,22 @@
 'use client';
 
-import { useEntityQuery } from './use-entity-query';
+import { useEntityQuery, hasRuntimeApi } from './use-entity-query';
 import { useEntityMutation } from './use-entity-mutation';
 import { STALE_TIMES } from '@/lib/chain/constants';
 import type {
   SingleLineConfig,
+  SingleLinePayoutRecord,
+  MemberSingleLineSummary,
+  CommissionRecord,
   MultiLevelConfig,
+  MultiLevelPayoutRecord,
+  MultiLevelSummaryStats,
   PoolRewardConfig,
   RoundInfo,
   ClaimRecord,
+  CompletedRoundSummary,
+  PoolFundingRecord,
+  PoolRewardMemberView,
 } from '@/lib/types';
 
 // ======================== Single Line ========================
@@ -98,6 +106,148 @@ export function useSingleLineQueue(entityId: number | null) {
   );
 }
 
+/** Fetch member's single-line payout history (most recent 50) */
+export function useSingleLinePayouts(entityId: number | null, address: string | null) {
+  return useEntityQuery<SingleLinePayoutRecord[]>(
+    ['singleLinePayouts', entityId, address],
+    async (api) => {
+      if (entityId == null || !address) return [];
+      const raw = await (api.query as any).commissionSingleLine.memberSingleLinePayouts(entityId, address);
+      const data: any[] = raw.toJSON() ?? [];
+      return data.map((r) => ({
+        orderId: r.orderId ?? r.order_id ?? 0,
+        amount: String(r.amount ?? '0'),
+        direction: parseDirection(r.direction),
+        buyer: r.buyer ?? '',
+        levelDistance: r.levelDistance ?? r.level_distance ?? 0,
+        blockNumber: r.blockNumber ?? r.block_number ?? 0,
+      }));
+    },
+    { staleTime: STALE_TIMES.commission, enabled: entityId != null && !!address },
+  );
+}
+
+/** Fetch member's single-line summary stats (upline/downline totals) */
+export function useSingleLineMemberStats(entityId: number | null, address: string | null) {
+  return useEntityQuery<MemberSingleLineSummary>(
+    ['singleLineMemberStats', entityId, address],
+    async (api) => {
+      const empty: MemberSingleLineSummary = { totalEarnedAsUpline: '0', totalEarnedAsDownline: '0', totalPayoutCount: 0, lastPayoutBlock: 0 };
+      if (entityId == null || !address) return empty;
+      const raw = await (api.query as any).commissionSingleLine.memberSingleLineStats(entityId, address);
+      const data = raw.toJSON();
+      if (!data) return empty;
+      return {
+        totalEarnedAsUpline: String(data.totalEarnedAsUpline ?? data.total_earned_as_upline ?? '0'),
+        totalEarnedAsDownline: String(data.totalEarnedAsDownline ?? data.total_earned_as_downline ?? '0'),
+        totalPayoutCount: data.totalPayoutCount ?? data.total_payout_count ?? 0,
+        lastPayoutBlock: data.lastPayoutBlock ?? data.last_payout_block ?? 0,
+      };
+    },
+    { staleTime: STALE_TIMES.commission, enabled: entityId != null && !!address },
+  );
+}
+
+/** Fetch all single-line commission records from core module (MemberCommissionOrderIds → OrderCommissionRecords) */
+export function useSingleLineCommissionRecords(entityId: number | null, address: string | null) {
+  return useEntityQuery<CommissionRecord[]>(
+    ['singleLineCommissionRecords', entityId, address],
+    async (api) => {
+      if (entityId == null || !address) return [];
+      // Step 1: Get all order IDs where this member earned commission
+      const orderIdsRaw = await (api.query as any).commissionCore.memberCommissionOrderIds(entityId, address);
+      const orderIds: number[] = (orderIdsRaw.toJSON() ?? []).map(Number);
+      if (orderIds.length === 0) return [];
+      // Step 2: Fetch commission records for each order and filter to single-line types
+      const records: CommissionRecord[] = [];
+      for (const orderId of orderIds) {
+        const raw = await (api.query as any).commissionCore.orderCommissionRecords(orderId);
+        const items: any[] = raw.toJSON() ?? [];
+        for (const r of items) {
+          const ct = parseCommissionType(r.commissionType ?? r.commission_type);
+          if (ct !== 'SingleLineUpline' && ct !== 'SingleLineDownline') continue;
+          const beneficiary = r.beneficiary ?? '';
+          // Only include records where this account is the beneficiary
+          if (beneficiary.toLowerCase() !== address.toLowerCase()) continue;
+          records.push({
+            entityId: r.entityId ?? r.entity_id ?? 0,
+            shopId: r.shopId ?? r.shop_id ?? 0,
+            orderId: r.orderId ?? r.order_id ?? orderId,
+            buyer: r.buyer ?? '',
+            beneficiary,
+            amount: String(r.amount ?? '0'),
+            commissionType: ct,
+            level: r.level ?? 0,
+            status: parseCommissionStatus(r.status),
+            createdAt: r.createdAt ?? r.created_at ?? 0,
+          });
+        }
+      }
+      // Sort by block number descending (newest first)
+      records.sort((a, b) => b.createdAt - a.createdAt);
+      return records;
+    },
+    { staleTime: STALE_TIMES.commission, enabled: entityId != null && !!address },
+  );
+}
+
+function parseCommissionType(ct: any): CommissionRecord['commissionType'] {
+  if (typeof ct === 'string') {
+    // Handle both camelCase and snake_case variants
+    const s = ct.replace(/[-_]/g, '').toLowerCase();
+    if (s.includes('singlelineupline') || s === 'singlelineupline') return 'SingleLineUpline';
+    if (s.includes('singlelinedownline') || s === 'singlelinedownline') return 'SingleLineDownline';
+    if (s.includes('directreward')) return 'DirectReward';
+    if (s.includes('multilevel')) return 'MultiLevel';
+    if (s.includes('teamperformance')) return 'TeamPerformance';
+    if (s.includes('leveldiff')) return 'LevelDiff';
+    if (s.includes('fixedamount')) return 'FixedAmount';
+    if (s.includes('firstorder')) return 'FirstOrder';
+    if (s.includes('repeatpurchase')) return 'RepeatPurchase';
+    if (s.includes('entityreferral')) return 'EntityReferral';
+    if (s.includes('poolreward')) return 'PoolReward';
+    if (s.includes('creatorreward')) return 'CreatorReward';
+    return ct as CommissionRecord['commissionType'];
+  }
+  if (ct && typeof ct === 'object') {
+    if ('singleLineUpline' in ct || 'SingleLineUpline' in ct) return 'SingleLineUpline';
+    if ('singleLineDownline' in ct || 'SingleLineDownline' in ct) return 'SingleLineDownline';
+    // Fallback: get first key
+    const key = Object.keys(ct)[0] ?? '';
+    return (key.charAt(0).toUpperCase() + key.slice(1)) as CommissionRecord['commissionType'];
+  }
+  return 'SingleLineUpline';
+}
+
+function parseCommissionStatus(s: any): CommissionRecord['status'] {
+  if (typeof s === 'string') {
+    const lower = s.toLowerCase();
+    if (lower.includes('settled')) return 'Settled';
+    if (lower.includes('cancelled') || lower.includes('canceled')) return 'Cancelled';
+    if (lower.includes('distributed')) return 'Distributed';
+    return 'Pending';
+  }
+  if (s && typeof s === 'object') {
+    if ('settled' in s || 'Settled' in s) return 'Settled';
+    if ('cancelled' in s || 'Cancelled' in s) return 'Cancelled';
+    if ('distributed' in s || 'Distributed' in s) return 'Distributed';
+    return 'Pending';
+  }
+  return 'Pending';
+}
+
+function parseDirection(d: any): 'Upline' | 'Downline' {
+  if (typeof d === 'string') {
+    if (d.toLowerCase().includes('downline') || d === 'Downline') return 'Downline';
+    return 'Upline';
+  }
+  if (d && typeof d === 'object') {
+    if ('downline' in d || 'Downline' in d) return 'Downline';
+    return 'Upline';
+  }
+  return 'Upline';
+}
+
 // ======================== Multi Level ========================
 
 export function useMultiLevelConfig(entityId: number | null) {
@@ -136,15 +286,15 @@ export function useMultiLevelPaused(entityId: number | null) {
 }
 
 export function useMultiLevelMemberStats(entityId: number | null, address: string | null) {
-  return useEntityQuery<{ totalEarned: string; totalOrders: number; lastCommissionBlock: number }>(
+  return useEntityQuery<{ totalEarned: string; commissionReceiptCount: number; lastCommissionBlock: number }>(
     ['multiLevelMemberStats', entityId, address],
     async (api) => {
-      if (entityId == null || !address) return { totalEarned: '0', totalOrders: 0, lastCommissionBlock: 0 };
+      if (entityId == null || !address) return { totalEarned: '0', commissionReceiptCount: 0, lastCommissionBlock: 0 };
       const raw = await (api.query as any).commissionMultiLevel.memberMultiLevelStats(entityId, address);
       const data = raw.toJSON();
       return {
         totalEarned: String(data?.totalEarned ?? data?.total_earned ?? '0'),
-        totalOrders: data?.totalOrders ?? data?.total_orders ?? 0,
+        commissionReceiptCount: data?.commissionReceiptCount ?? data?.commission_receipt_count ?? 0,
         lastCommissionBlock: data?.lastCommissionBlock ?? data?.last_commission_block ?? 0,
       };
     },
@@ -153,19 +303,59 @@ export function useMultiLevelMemberStats(entityId: number | null, address: strin
 }
 
 export function useMultiLevelEntityStats(entityId: number | null) {
-  return useEntityQuery<{ totalDistributed: string; totalOrders: number; totalDistributionEntries: number }>(
+  return useEntityQuery<{ totalDistributed: string; orderCount: number; totalDistributionEntries: number }>(
     ['multiLevelEntityStats', entityId],
     async (api) => {
-      if (entityId == null) return { totalDistributed: '0', totalOrders: 0, totalDistributionEntries: 0 };
+      if (entityId == null) return { totalDistributed: '0', orderCount: 0, totalDistributionEntries: 0 };
       const raw = await (api.query as any).commissionMultiLevel.entityMultiLevelStats(entityId);
       const data = raw.toJSON();
       return {
         totalDistributed: String(data?.totalDistributed ?? data?.total_distributed ?? '0'),
-        totalOrders: data?.totalOrders ?? data?.total_orders ?? 0,
+        orderCount: data?.orderCount ?? data?.order_count ?? 0,
         totalDistributionEntries: data?.totalDistributionEntries ?? data?.total_distribution_entries ?? 0,
       };
     },
     { staleTime: STALE_TIMES.entity, enabled: entityId != null },
+  );
+}
+
+/** Fetch member's multi-level payout history (FIFO, most recent MaxPayoutRecords) */
+export function useMultiLevelPayouts(entityId: number | null, address: string | null) {
+  return useEntityQuery<MultiLevelPayoutRecord[]>(
+    ['multiLevelPayouts', entityId, address],
+    async (api) => {
+      if (entityId == null || !address) return [];
+      const raw = await (api.query as any).commissionMultiLevel.memberMultiLevelPayouts(entityId, address);
+      const data: any[] = raw.toJSON() ?? [];
+      return data.map((r) => ({
+        buyer: r.buyer ?? '',
+        orderId: r.orderId ?? r.order_id ?? 0,
+        amount: String(r.amount ?? '0'),
+        level: r.level ?? 0,
+        blockNumber: r.blockNumber ?? r.block_number ?? 0,
+      }));
+    },
+    { staleTime: STALE_TIMES.commission, enabled: entityId != null && !!address },
+  );
+}
+
+/** Fetch member's multi-level summary stats (MemberMultiLevelSummaryStats) */
+export function useMultiLevelSummaryStats(entityId: number | null, address: string | null) {
+  return useEntityQuery<MultiLevelSummaryStats>(
+    ['multiLevelSummaryStats', entityId, address],
+    async (api) => {
+      const empty: MultiLevelSummaryStats = { totalEarned: '0', totalPayoutCount: 0, lastPayoutBlock: 0 };
+      if (entityId == null || !address) return empty;
+      const raw = await (api.query as any).commissionMultiLevel.memberMultiLevelSummaryStats(entityId, address);
+      const data = raw.toJSON();
+      if (!data) return empty;
+      return {
+        totalEarned: String(data.totalEarned ?? data.total_earned ?? '0'),
+        totalPayoutCount: data.totalPayoutCount ?? data.total_payout_count ?? 0,
+        lastPayoutBlock: data.lastPayoutBlock ?? data.last_payout_block ?? 0,
+      };
+    },
+    { staleTime: STALE_TIMES.commission, enabled: entityId != null && !!address },
   );
 }
 
@@ -284,6 +474,193 @@ export function useUnallocatedPool(entityId: number | null) {
       if (entityId == null) return '0';
       const raw = await (api.query as any).commissionCore.unallocatedPool(entityId);
       return String(raw.toJSON() ?? '0');
+    },
+    { staleTime: STALE_TIMES.entity, enabled: entityId != null },
+  );
+}
+
+/** Fetch round history (completed rounds, bounded FIFO) */
+export function useRoundHistory(entityId: number | null) {
+  return useEntityQuery<CompletedRoundSummary[]>(
+    ['roundHistory', entityId],
+    async (api) => {
+      if (entityId == null) return [];
+      const raw = await (api.query as any).commissionPoolReward.roundHistory(entityId);
+      const data: any[] = raw.toJSON() ?? [];
+      return data.map((r) => ({
+        roundId: r.roundId ?? r.round_id ?? 0,
+        startBlock: r.startBlock ?? r.start_block ?? 0,
+        endBlock: r.endBlock ?? r.end_block ?? 0,
+        poolSnapshot: String(r.poolSnapshot ?? r.pool_snapshot ?? '0'),
+        tokenPoolSnapshot: r.tokenPoolSnapshot ?? r.token_pool_snapshot ?? null,
+        levelSnapshots: (r.levelSnapshots ?? r.level_snapshots ?? []).map((s: any) => ({
+          levelId: s.levelId ?? s.level_id ?? 0,
+          memberCount: s.memberCount ?? s.member_count ?? 0,
+          perMemberReward: String(s.perMemberReward ?? s.per_member_reward ?? '0'),
+          claimedCount: s.claimedCount ?? s.claimed_count ?? 0,
+        })),
+        tokenLevelSnapshots: (r.tokenLevelSnapshots ?? r.token_level_snapshots)
+          ? (r.tokenLevelSnapshots ?? r.token_level_snapshots).map((s: any) => ({
+              levelId: s.levelId ?? s.level_id ?? 0,
+              memberCount: s.memberCount ?? s.member_count ?? 0,
+              perMemberReward: String(s.perMemberReward ?? s.per_member_reward ?? '0'),
+              claimedCount: s.claimedCount ?? s.claimed_count ?? 0,
+            }))
+          : null,
+        fundingSummary: {
+          nexCommissionRemainder: String(
+            (r.fundingSummary ?? r.funding_summary)?.nexCommissionRemainder ??
+            (r.fundingSummary ?? r.funding_summary)?.nex_commission_remainder ?? '0'
+          ),
+          tokenPlatformFeeRetention: String(
+            (r.fundingSummary ?? r.funding_summary)?.tokenPlatformFeeRetention ??
+            (r.fundingSummary ?? r.funding_summary)?.token_platform_fee_retention ?? '0'
+          ),
+          tokenCommissionRemainder: String(
+            (r.fundingSummary ?? r.funding_summary)?.tokenCommissionRemainder ??
+            (r.fundingSummary ?? r.funding_summary)?.token_commission_remainder ?? '0'
+          ),
+          nexCancelReturn: String(
+            (r.fundingSummary ?? r.funding_summary)?.nexCancelReturn ??
+            (r.fundingSummary ?? r.funding_summary)?.nex_cancel_return ?? '0'
+          ),
+          totalFundingCount:
+            (r.fundingSummary ?? r.funding_summary)?.totalFundingCount ??
+            (r.fundingSummary ?? r.funding_summary)?.total_funding_count ?? 0,
+        },
+      }));
+    },
+    { staleTime: STALE_TIMES.entity, enabled: entityId != null },
+  );
+}
+
+/** Fetch pool funding records (FIFO detail log, cross-round) */
+export function usePoolFundingRecords(entityId: number | null) {
+  return useEntityQuery<PoolFundingRecord[]>(
+    ['poolFundingRecords', entityId],
+    async (api) => {
+      if (entityId == null) return [];
+      const raw = await (api.query as any).commissionPoolReward.poolFundingRecords(entityId);
+      const data: any[] = raw.toJSON() ?? [];
+      return data.map((r) => ({
+        source: parseFundingSource(r.source),
+        nexAmount: String(r.nexAmount ?? r.nex_amount ?? '0'),
+        tokenAmount: String(r.tokenAmount ?? r.token_amount ?? '0'),
+        orderId: r.orderId ?? r.order_id ?? 0,
+        blockNumber: r.blockNumber ?? r.block_number ?? 0,
+      }));
+    },
+    { staleTime: STALE_TIMES.entity, enabled: entityId != null },
+  );
+}
+
+function parseFundingSource(s: any): PoolFundingRecord['source'] {
+  if (typeof s === 'string') {
+    const lower = s.replace(/[-_]/g, '').toLowerCase();
+    if (lower.includes('ordercommissionremainder')) return 'OrderCommissionRemainder';
+    if (lower.includes('tokenplatformfeeretention')) return 'TokenPlatformFeeRetention';
+    if (lower.includes('tokencommissionremainder')) return 'TokenCommissionRemainder';
+    if (lower.includes('cancelreturn')) return 'CancelReturn';
+    return s as PoolFundingRecord['source'];
+  }
+  if (s && typeof s === 'object') {
+    const key = Object.keys(s)[0] ?? '';
+    const lower = key.replace(/[-_]/g, '').toLowerCase();
+    if (lower.includes('ordercommissionremainder')) return 'OrderCommissionRemainder';
+    if (lower.includes('tokenplatformfeeretention')) return 'TokenPlatformFeeRetention';
+    if (lower.includes('tokencommissionremainder')) return 'TokenCommissionRemainder';
+    if (lower.includes('cancelreturn')) return 'CancelReturn';
+    return (key.charAt(0).toUpperCase() + key.slice(1)) as PoolFundingRecord['source'];
+  }
+  return 'OrderCommissionRemainder';
+}
+
+/** Pool Reward member view via runtime API (comprehensive personal dashboard) */
+export function usePoolRewardMemberView(entityId: number | null, address: string | null) {
+  return useEntityQuery<PoolRewardMemberView | null>(
+    ['poolRewardMemberView', entityId, address],
+    async (api) => {
+      if (entityId == null || !address) return null;
+      if (!hasRuntimeApi(api, 'poolRewardDetailApi')) return null;
+      const raw = await (api.call as any).poolRewardDetailApi
+        .getPoolRewardMemberView(entityId, address);
+      if (raw.isNone) return null;
+      const d = raw.unwrap().toJSON();
+      return {
+        roundDuration: d.roundDuration ?? d.round_duration ?? 0,
+        tokenPoolEnabled: d.tokenPoolEnabled ?? d.token_pool_enabled ?? false,
+        levelRatios: d.levelRatios ?? d.level_ratios ?? [],
+        currentRoundId: d.currentRoundId ?? d.current_round_id ?? 0,
+        roundStartBlock: d.roundStartBlock ?? d.round_start_block ?? 0,
+        roundEndBlock: d.roundEndBlock ?? d.round_end_block ?? 0,
+        poolSnapshot: String(d.poolSnapshot ?? d.pool_snapshot ?? '0'),
+        tokenPoolSnapshot: d.tokenPoolSnapshot ?? d.token_pool_snapshot ?? null,
+        effectiveLevel: d.effectiveLevel ?? d.effective_level ?? 0,
+        claimableNex: String(d.claimableNex ?? d.claimable_nex ?? '0'),
+        claimableToken: String(d.claimableToken ?? d.claimable_token ?? '0'),
+        alreadyClaimed: d.alreadyClaimed ?? d.already_claimed ?? false,
+        roundExpired: d.roundExpired ?? d.round_expired ?? false,
+        lastClaimedRound: d.lastClaimedRound ?? d.last_claimed_round ?? 0,
+        levelProgress: (d.levelProgress ?? d.level_progress ?? []).map((p: any) => ({
+          levelId: p.levelId ?? p.level_id ?? 0,
+          ratioBps: p.ratioBps ?? p.ratio_bps ?? 0,
+          memberCount: p.memberCount ?? p.member_count ?? 0,
+          claimedCount: p.claimedCount ?? p.claimed_count ?? 0,
+          perMemberReward: String(p.perMemberReward ?? p.per_member_reward ?? '0'),
+        })),
+        tokenLevelProgress: d.tokenLevelProgress ?? d.token_level_progress
+          ? (d.tokenLevelProgress ?? d.token_level_progress).map((p: any) => ({
+              levelId: p.levelId ?? p.level_id ?? 0,
+              ratioBps: p.ratioBps ?? p.ratio_bps ?? 0,
+              memberCount: p.memberCount ?? p.member_count ?? 0,
+              claimedCount: p.claimedCount ?? p.claimed_count ?? 0,
+              perMemberReward: String(p.perMemberReward ?? p.per_member_reward ?? '0'),
+            }))
+          : null,
+        claimHistory: (d.claimHistory ?? d.claim_history ?? []).map((c: any) => ({
+          roundId: c.roundId ?? c.round_id ?? 0,
+          amount: String(c.amount ?? '0'),
+          tokenAmount: String(c.tokenAmount ?? c.token_amount ?? '0'),
+          levelId: c.levelId ?? c.level_id ?? 0,
+          claimedAt: c.claimedAt ?? c.claimed_at ?? 0,
+        })),
+        isPaused: d.isPaused ?? d.is_paused ?? false,
+        hasPendingConfig: d.hasPendingConfig ?? d.has_pending_config ?? false,
+      } as PoolRewardMemberView;
+    },
+    { staleTime: STALE_TIMES.runtimeApi, enabled: entityId != null && !!address },
+  );
+}
+
+/** Fetch current round funding summary (accumulator for in-progress round) */
+export function useCurrentRoundFunding(entityId: number | null) {
+  return useEntityQuery<{
+    nexCommissionRemainder: string;
+    tokenPlatformFeeRetention: string;
+    tokenCommissionRemainder: string;
+    nexCancelReturn: string;
+    totalFundingCount: number;
+  }>(
+    ['currentRoundFunding', entityId],
+    async (api) => {
+      const empty = {
+        nexCommissionRemainder: '0',
+        tokenPlatformFeeRetention: '0',
+        tokenCommissionRemainder: '0',
+        nexCancelReturn: '0',
+        totalFundingCount: 0,
+      };
+      if (entityId == null) return empty;
+      const raw = await (api.query as any).commissionPoolReward.currentRoundFunding(entityId);
+      const data = raw.toJSON();
+      if (!data) return empty;
+      return {
+        nexCommissionRemainder: String(data.nexCommissionRemainder ?? data.nex_commission_remainder ?? '0'),
+        tokenPlatformFeeRetention: String(data.tokenPlatformFeeRetention ?? data.token_platform_fee_retention ?? '0'),
+        tokenCommissionRemainder: String(data.tokenCommissionRemainder ?? data.token_commission_remainder ?? '0'),
+        nexCancelReturn: String(data.nexCancelReturn ?? data.nex_cancel_return ?? '0'),
+        totalFundingCount: data.totalFundingCount ?? data.total_funding_count ?? 0,
+      };
     },
     { staleTime: STALE_TIMES.entity, enabled: entityId != null },
   );

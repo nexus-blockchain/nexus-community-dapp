@@ -58,9 +58,9 @@ export function useBuyerOrders(buyer: string | null) {
       if (!buyer) return [];
       const idsRaw = await (api.query as any).entityTransaction.buyerOrders(buyer);
       const ids: number[] = idsRaw.toJSON() ?? [];
+      const results = await Promise.all(ids.map(id => (api.query as any).entityTransaction.orders(id)));
       const orders: Order[] = [];
-      for (const id of ids) {
-        const raw = await (api.query as any).entityTransaction.orders(id);
+      for (const raw of results) {
         if (raw.isNone) continue;
         orders.push(parseOrder(raw.unwrap().toJSON()));
       }
@@ -78,9 +78,9 @@ export function useShopOrders(shopId: number | null) {
       if (shopId == null) return [];
       const idsRaw = await (api.query as any).entityTransaction.shopOrders(shopId);
       const ids: number[] = idsRaw.toJSON() ?? [];
+      const results = await Promise.all(ids.map(id => (api.query as any).entityTransaction.orders(id)));
       const orders: Order[] = [];
-      for (const id of ids) {
-        const raw = await (api.query as any).entityTransaction.orders(id);
+      for (const raw of results) {
         if (raw.isNone) continue;
         orders.push(parseOrder(raw.unwrap().toJSON()));
       }

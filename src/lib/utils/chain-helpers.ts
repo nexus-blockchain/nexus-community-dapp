@@ -11,10 +11,16 @@ export function formatBalance(raw: string | bigint, decimals = 12, displayDecima
   return `${whole}.${fracStr}`;
 }
 
-/** Format USDT amount (6 decimals) */
+/** Format USDT amount (6 decimals) — uses BigInt to avoid floating-point precision loss */
 export function formatUsdt(raw: number | string, displayDecimals = 2): string {
-  const n = typeof raw === 'number' ? raw : Number(raw);
-  return (n / 1e6).toFixed(displayDecimals);
+  const bi = BigInt(typeof raw === 'number' ? Math.round(raw) : raw);
+  const divisor = BigInt(1e6);
+  const whole = bi / divisor;
+  const frac = bi % divisor;
+  if (displayDecimals === 0) return `${whole}`;
+  // Pad fraction to 6 digits, then truncate to displayDecimals
+  const fracStr = frac.toString().padStart(6, '0').slice(0, displayDecimals);
+  return `${whole}.${fracStr}`;
 }
 
 /** Format NEX/USDT price (raw u64 with 10^6 precision).

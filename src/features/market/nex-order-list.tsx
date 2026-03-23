@@ -85,7 +85,7 @@ export function NexOrderList({ side, orders, isLoading, onAction }: NexOrderList
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-6 w-full px-1 text-[10px]"
+                  className="h-8 w-full px-1 text-[10px]"
                   onClick={() => onAction?.(order)}
                 >
                   <ActionIcon className="h-3 w-3" />

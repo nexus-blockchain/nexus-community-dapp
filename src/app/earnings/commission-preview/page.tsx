@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { MobileHeader } from '@/components/layout/mobile-header';
 import { PageContainer } from '@/components/layout/page-container';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -206,12 +207,12 @@ export default function CommissionPreviewPage() {
                 <CardContent className="p-4">
                   <label className="text-xs font-medium text-muted-foreground">{t('orderAmount')}</label>
                   <div className="mt-1 flex items-center gap-2">
-                    <input
+                    <Input
                       type="number"
                       min={1}
                       value={orderAmount}
                       onChange={(e) => setOrderAmount(Math.max(1, Number(e.target.value) || 1))}
-                      className="h-9 flex-1 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      className="flex-1"
                     />
                     <span className="text-xs text-muted-foreground">{t('orderAmountUnit')}</span>
                   </div>

@@ -75,7 +75,7 @@ export function NexMyOrders({ orders, onCancelOrder, cancelLoading }: NexMyOrder
                     {cancelLoading ? (
                       <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
                     ) : null}
-                    撤单
+                    {t('cancelOrder')}
                   </Button>
                 </div>
               </div>

@@ -30,13 +30,13 @@ export function useEntitySellOrders(entityId: number | null) {
       if (entityId == null) return [];
       const idsRaw = await (api.query as any).nexMarket.entitySellOrders(entityId);
       const ids: number[] = idsRaw.toJSON() ?? [];
+      const results = await Promise.all(ids.map(id => (api.query as any).nexMarket.orders(id)));
       const orders: TradeOrder[] = [];
-      for (const id of ids) {
-        const raw = await (api.query as any).nexMarket.orders(id);
+      for (const raw of results) {
         if (raw.isNone) continue;
         orders.push(parseTradeOrder(raw.unwrap().toJSON()));
       }
-      return orders.sort((a, b) => Number(BigInt(a.price) - BigInt(b.price)));
+      return orders.sort((a, b) => { const diff = BigInt(a.price) - BigInt(b.price); return diff < BigInt(0) ? -1 : diff > BigInt(0) ? 1 : 0; });
     },
     { staleTime: STALE_TIMES.orderBook, enabled: entityId != null },
   );
@@ -50,13 +50,13 @@ export function useEntityBuyOrders(entityId: number | null) {
       if (entityId == null) return [];
       const idsRaw = await (api.query as any).nexMarket.entityBuyOrders(entityId);
       const ids: number[] = idsRaw.toJSON() ?? [];
+      const results = await Promise.all(ids.map(id => (api.query as any).nexMarket.orders(id)));
       const orders: TradeOrder[] = [];
-      for (const id of ids) {
-        const raw = await (api.query as any).nexMarket.orders(id);
+      for (const raw of results) {
         if (raw.isNone) continue;
         orders.push(parseTradeOrder(raw.unwrap().toJSON()));
       }
-      return orders.sort((a, b) => Number(BigInt(b.price) - BigInt(a.price)));
+      return orders.sort((a, b) => { const diff = BigInt(b.price) - BigInt(a.price); return diff < BigInt(0) ? -1 : diff > BigInt(0) ? 1 : 0; });
     },
     { staleTime: STALE_TIMES.orderBook, enabled: entityId != null },
   );
@@ -70,9 +70,9 @@ export function useUserMarketOrders(address: string | null) {
       if (!address) return [];
       const idsRaw = await (api.query as any).nexMarket.userOrders(address);
       const ids: number[] = idsRaw.toJSON() ?? [];
+      const results = await Promise.all(ids.map(id => (api.query as any).nexMarket.orders(id)));
       const orders: TradeOrder[] = [];
-      for (const id of ids) {
-        const raw = await (api.query as any).nexMarket.orders(id);
+      for (const raw of results) {
         if (raw.isNone) continue;
         orders.push(parseTradeOrder(raw.unwrap().toJSON()));
       }
@@ -182,7 +182,7 @@ export function useOrderBookDepth(entityId: number | null) {
       acc.push({ price: o.price, totalAmount: remaining, orderCount: 1, hasSeedOrder: o.depositWaived });
     }
     return acc;
-  }, []).sort((a, b) => Number(BigInt(a.price) - BigInt(b.price)));
+  }, []).sort((a, b) => { const diff = BigInt(a.price) - BigInt(b.price); return diff < BigInt(0) ? -1 : diff > BigInt(0) ? 1 : 0; });
 
   const bids = (buys ?? []).reduce<{ price: string; totalAmount: bigint; orderCount: number; hasSeedOrder: boolean }[]>((acc, o) => {
     const remaining = BigInt(o.tokenAmount) - BigInt(o.filledAmount);
@@ -196,7 +196,7 @@ export function useOrderBookDepth(entityId: number | null) {
       acc.push({ price: o.price, totalAmount: remaining, orderCount: 1, hasSeedOrder: o.depositWaived });
     }
     return acc;
-  }, []).sort((a, b) => Number(BigInt(b.price) - BigInt(a.price)));
+  }, []).sort((a, b) => { const diff = BigInt(b.price) - BigInt(a.price); return diff < BigInt(0) ? -1 : diff > BigInt(0) ? 1 : 0; });
 
   // Compute cumulative depths
   let askCum = BigInt(0);

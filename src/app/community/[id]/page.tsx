@@ -1,23 +1,9 @@
-'use client';
+import CommunityDetailClient from './client';
 
-import { useTranslations } from 'next-intl';
-import { PageContainer } from '@/components/layout/page-container';
-import { MobileHeader } from '@/components/layout/mobile-header';
-import { Card, CardContent } from '@/components/ui/card';
+export function generateStaticParams() {
+  return Array.from({ length: 1000 }, (_, i) => ({ id: String(i) }));
+}
 
 export default function CommunityDetailPage({ params }: { params: { id: string } }) {
-  const t = useTranslations('community');
-
-  return (
-    <>
-      <MobileHeader title={t('title', { id: params.id })} showBack />
-      <PageContainer>
-        <Card>
-          <CardContent className="py-12 text-center">
-            <p className="text-muted-foreground">{t('comingSoon')}</p>
-          </CardContent>
-        </Card>
-      </PageContainer>
-    </>
-  );
+  return <CommunityDetailClient params={params} />;
 }

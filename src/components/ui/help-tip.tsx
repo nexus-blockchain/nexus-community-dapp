@@ -29,7 +29,7 @@ export function HelpTip({ helpKey, title, iconSize = 14, className }: HelpTipPro
       <DialogTrigger asChild>
         <button
           type="button"
-          className={`inline-flex shrink-0 items-center justify-center rounded-full text-muted-foreground/60 hover:text-muted-foreground transition-colors ${className ?? ''}`}
+          className={`inline-flex shrink-0 items-center justify-center rounded-full min-h-[44px] min-w-[44px] text-muted-foreground/60 hover:text-muted-foreground transition-colors ${className ?? ''}`}
           onClick={(e) => e.stopPropagation()}
           aria-label="Help"
         >
