@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/button';
 import { useEntityStore, useWalletStore } from '@/stores';
 import { useCommissionDashboard, useEntityCommissionOverview } from '@/hooks/use-commission-dashboard';
 import { useMemberCommissionStats, useWithdrawCommission } from '@/hooks/use-commission-core';
-import { formatBalance, bpsToPercent } from '@/lib/utils/chain-helpers';
+import { formatBalance, bpsToPercent, isTxBusy } from '@/lib/utils/chain-helpers';
 import type { LucideIcon } from 'lucide-react';
 import { HelpTip } from '@/components/ui/help-tip';
 
@@ -56,7 +56,7 @@ export default function EarningsPage() {
   const { data: overview, isLoading: overviewLoading } = useEntityCommissionOverview(currentEntityId);
 
   const withdraw = useWithdrawCommission();
-  const withdrawBusy = ['signing', 'broadcasting', 'inBlock'].includes(withdraw.txState.status);
+  const withdrawBusy = isTxBusy(withdraw.txState);
 
   const isLoading = dashLoading || statsLoading || overviewLoading;
 
@@ -228,7 +228,7 @@ export default function EarningsPage() {
                         variant="ghost"
                         className="h-9 gap-1.5 px-3 text-lg font-bold text-success hover:text-success/80 hover:bg-success/10"
                         disabled={withdrawBusy || overview?.withdrawalPaused || BigInt(pending || '0') <= BigInt(0)}
-                        onClick={() => withdraw.mutate([currentEntityId])}
+                        onClick={() => withdraw.mutate([currentEntityId, pending, 'Free', false])}
                       >
                         {withdrawBusy ? (
                           <Loader2 className="h-5 w-5 animate-spin" />
