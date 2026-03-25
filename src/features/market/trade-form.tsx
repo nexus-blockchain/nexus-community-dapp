@@ -13,7 +13,7 @@ import {
   usePlaceBuyOrder, usePlaceSellOrder,
   useMarketBuy, useMarketSell,
 } from '@/hooks/use-market';
-import { nexToRaw } from '@/lib/utils/chain-helpers';
+import { nexToRaw, isTxBusy } from '@/lib/utils/chain-helpers';
 
 interface TradeFormProps {
   entityId: number | null;
@@ -23,7 +23,7 @@ interface TradeFormProps {
 }
 
 function isBusy(m: { txState: { status: string } }): boolean {
-  return ['signing', 'broadcasting', 'inBlock'].includes(m.txState.status);
+  return isTxBusy(m.txState);
 }
 
 export function TradeForm({ entityId, prefilledPrice, onPrefilledPriceUsed }: TradeFormProps) {

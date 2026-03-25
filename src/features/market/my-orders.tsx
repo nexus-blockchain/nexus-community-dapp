@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useCancelMarketOrder } from '@/hooks/use-market';
-import { formatBalance } from '@/lib/utils/chain-helpers';
+import { formatBalance, isTxBusy } from '@/lib/utils/chain-helpers';
 import type { TradeOrder } from '@/lib/types';
 
 interface MyOrdersProps {
@@ -17,7 +17,7 @@ interface MyOrdersProps {
 export function MyOrders({ orders, entityId }: MyOrdersProps) {
   const t = useTranslations('market');
   const cancelOrder = useCancelMarketOrder();
-  const cancelling = ['signing', 'broadcasting', 'inBlock'].includes(cancelOrder.txState.status);
+  const cancelling = isTxBusy(cancelOrder.txState);
 
   const activeOrders = (orders ?? []).filter(
     (o) => (o.entityId === entityId) && (o.status === 'Open' || o.status === 'PartiallyFilled'),

@@ -23,6 +23,7 @@ import { useMember, useMyMemberships, useRegisterMember } from '@/hooks/use-memb
 import { useApi } from '@/lib/chain';
 import { useNodeHealthStore, type NodeStatus } from '@/stores/node-health-store';
 import { locales, type Locale } from '@/i18n/config';
+import { isTxBusy } from '@/lib/utils/chain-helpers';
 
 const LOCALE_LABELS: Record<Locale, string> = {
   zh: '中文',
@@ -57,14 +58,16 @@ export default function SettingsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [joiningEntityId, setJoiningEntityId] = useState<number | null>(null);
 
-  const isBusy = ['signing', 'broadcasting', 'inBlock'].includes(registerMember.txState.status);
+  const isBusy = isTxBusy(registerMember.txState);
 
   const handleJoinEntity = async (entityId: number, name: string) => {
     if (!address) return;
+    const entity = entities?.find((e) => e.id === entityId);
+    if (!entity?.primaryShopId) return;
     setJoiningEntityId(entityId);
     registerMember.reset();
     try {
-      await registerMember.mutate([entityId, null]);
+      await registerMember.mutate([entity.primaryShopId, null]);
       // On success, switch to this entity
       setEntity(entityId, name);
       setDialogOpen(false);

@@ -86,11 +86,13 @@ export async function discoverPeers(api: ApiPromise): Promise<string[]> {
       }
     }
 
-    // Generate ws:// endpoints for each IP × port
+    // Generate ws:// and wss:// endpoints for each IP × port
     const endpoints: string[] = [];
     const ipArray = Array.from(ips);
     for (const ip of ipArray) {
       for (const port of NODE_HEALTH_CONFIG.discoveryRpcPorts) {
+        // Prefer wss:// for non-local IPs
+        endpoints.push(`wss://${ip}:${port}`);
         endpoints.push(`ws://${ip}:${port}`);
       }
     }

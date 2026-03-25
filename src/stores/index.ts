@@ -5,3 +5,4 @@ export { useNodeHealthStore, type NodeStatus, type NodeSource, type NodeHealth }
 export { useEntityStore } from './entity-store';
 export { useUiStore, type TabId } from './ui-store';
 export { useTransferHistoryStore, type TransferRecord } from './transfer-history-store';
+export { useWithdrawalHistoryStore, type WithdrawalRecord } from './withdrawal-history-store';

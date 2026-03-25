@@ -160,7 +160,7 @@ export default function SingleLineEarningsPage() {
             )}
           </div>
 
-          {/* My single-line total earnings */}
+          {/* My single-line earnings */}
           {address && (
             <Card className="border-primary/30">
               <CardContent className="p-4">
@@ -171,36 +171,28 @@ export default function SingleLineEarningsPage() {
                   )}
                   <span className="ml-1 text-sm font-normal text-muted-foreground">NEX</span>
                 </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {t('commissionReceipts', { count: memberStats?.totalPayoutCount ?? 0 })}
-                </p>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* My earnings breakdown (upline / downline) */}
-          {address && memberStats && memberStats.totalPayoutCount > 0 && (
-            <Card className="border-primary/30">
-              <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground">{t('myEarnings')}</p>
-                <div className="mt-2 grid grid-cols-2 gap-3">
-                  <div>
-                    <p className="text-xs text-muted-foreground">{t('earnedAsUpline')}</p>
-                    <p className="text-lg font-bold text-green-500">
-                      {formatBalance(memberStats.totalEarnedAsUpline)}
-                      <span className="ml-1 text-xs font-normal text-muted-foreground">NEX</span>
-                    </p>
+                {memberStats && memberStats.totalPayoutCount > 0 && (
+                  <div className="mt-2 grid grid-cols-2 gap-3">
+                    <div>
+                      <p className="text-xs text-muted-foreground">{t('earnedAsUpline')}</p>
+                      <p className="text-lg font-bold text-green-500">
+                        {formatBalance(memberStats.totalEarnedAsUpline)}
+                        <span className="ml-1 text-xs font-normal text-muted-foreground">NEX</span>
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">{t('earnedAsDownline')}</p>
+                      <p className="text-lg font-bold text-blue-500">
+                        {formatBalance(memberStats.totalEarnedAsDownline)}
+                        <span className="ml-1 text-xs font-normal text-muted-foreground">NEX</span>
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">{t('earnedAsDownline')}</p>
-                    <p className="text-lg font-bold text-blue-500">
-                      {formatBalance(memberStats.totalEarnedAsDownline)}
-                      <span className="ml-1 text-xs font-normal text-muted-foreground">NEX</span>
-                    </p>
-                  </div>
-                </div>
+                )}
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {t('payoutCount', { count: memberStats.totalPayoutCount })}
+                  {memberStats && memberStats.totalPayoutCount > 0
+                    ? t('payoutCount', { count: memberStats.totalPayoutCount })
+                    : t('commissionReceipts', { count: memberStats?.totalPayoutCount ?? 0 })}
                 </p>
               </CardContent>
             </Card>

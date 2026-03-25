@@ -50,6 +50,8 @@ function saveAll(data: Record<string, TransferRecord[]>) {
 }
 
 interface TransferHistoryState {
+  /** Reactive counter — incremented on mutations to trigger re-renders */
+  _version: number;
   /** Add a completed transfer record (keyed by sender address) */
   addRecord: (record: Omit<TransferRecord, 'id'>) => void;
   /** Get all records involving an address (sent or received) */
@@ -58,7 +60,9 @@ interface TransferHistoryState {
   clearRecords: (address: string) => void;
 }
 
-export const useTransferHistoryStore = create<TransferHistoryState>(() => ({
+export const useTransferHistoryStore = create<TransferHistoryState>((set) => ({
+  _version: 0,
+
   addRecord: (record) => {
     const all = loadAll();
     const entry: TransferRecord = {
@@ -73,6 +77,7 @@ export const useTransferHistoryStore = create<TransferHistoryState>(() => ({
     if (list.length > MAX_RECORDS_PER_ADDRESS) list.length = MAX_RECORDS_PER_ADDRESS;
     all[key] = list;
     saveAll(all);
+    set((s) => ({ _version: s._version + 1 }));
   },
 
   getRecords: (address) => {
@@ -96,5 +101,6 @@ export const useTransferHistoryStore = create<TransferHistoryState>(() => ({
     const all = loadAll();
     delete all[address];
     saveAll(all);
+    set((s) => ({ _version: s._version + 1 }));
   },
 }));

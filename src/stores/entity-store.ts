@@ -36,19 +36,30 @@ interface EntityState {
   memberStatus: 'none' | 'active' | 'frozen' | 'banned';
   memberLevel: number;
 
+  _hydrated: boolean;
+  _hydrate: () => void;
+
   setEntity: (id: number, name: string) => void;
   setMemberStatus: (status: 'none' | 'active' | 'frozen' | 'banned') => void;
   setMemberLevel: (level: number) => void;
   clearEntity: () => void;
 }
 
-const stored = loadEntity();
-
 export const useEntityStore = create<EntityState>((set) => ({
-  currentEntityId: stored?.currentEntityId ?? null,
-  entityName: stored?.entityName ?? null,
+  currentEntityId: null,
+  entityName: null,
   memberStatus: 'none',
   memberLevel: 0,
+
+  _hydrated: false,
+  _hydrate: () => {
+    const stored = loadEntity();
+    set({
+      currentEntityId: stored?.currentEntityId ?? null,
+      entityName: stored?.entityName ?? null,
+      _hydrated: true,
+    });
+  },
 
   setEntity: (id, name) => {
     saveEntity(id, name);

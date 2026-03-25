@@ -48,7 +48,9 @@ export const customTypes: Record<string, any> = {
   },
   TeamTierInfo: {
     tier_index: 'u8',
+    name: 'Bytes',
     rate: 'u16',
+    total_earned: 'u128',
     next_threshold: 'Option<u128>',
     next_min_team_size: 'Option<u32>',
   },
@@ -130,6 +132,13 @@ export const customTypes: Record<string, any> = {
     total_commission_earned: 'u128',
     cap_max_total: 'Option<u128>',
     cap_remaining: 'Option<u128>',
+  },
+  WithdrawalRecordView: {
+    total_amount: 'u128',
+    withdrawn: 'u128',
+    repurchased: 'u128',
+    bonus: 'u128',
+    block_number: 'u64',
   },
 
   // ----- Member Team API types -----
@@ -233,6 +242,43 @@ export const customTypes: Record<string, any> = {
     page_index: 'u32',
     has_more: 'bool',
   },
+
+  // ----- Pool Reward Detail API types -----
+  LevelProgressInfo: {
+    level_id: 'u8',
+    ratio_bps: 'u16',
+    member_count: 'u32',
+    claimed_count: 'u32',
+    per_member_reward: 'u128',
+  },
+  ClaimRecordInfo: {
+    round_id: 'u64',
+    amount: 'u128',
+    token_amount: 'u128',
+    level_id: 'u8',
+    claimed_at: 'u64',
+  },
+  PoolRewardMemberView: {
+    round_duration: 'u64',
+    token_pool_enabled: 'bool',
+    level_ratios: 'Vec<(u8, u16)>',
+    current_round_id: 'u64',
+    round_start_block: 'u64',
+    round_end_block: 'u64',
+    pool_snapshot: 'u128',
+    token_pool_snapshot: 'Option<u128>',
+    effective_level: 'u8',
+    claimable_nex: 'u128',
+    claimable_token: 'u128',
+    already_claimed: 'bool',
+    round_expired: 'bool',
+    last_claimed_round: 'u64',
+    level_progress: 'Vec<LevelProgressInfo>',
+    token_level_progress: 'Option<Vec<LevelProgressInfo>>',
+    claim_history: 'Vec<ClaimRecordInfo>',
+    is_paused: 'bool',
+    has_pending_config: 'bool',
+  },
 };
 
 // ============================================================================
@@ -281,6 +327,14 @@ export const runtimeDefs: DefinitionsCall = {
             { name: 'account', type: 'AccountId' },
           ],
           type: 'DirectReferralDetails',
+        },
+        get_member_withdrawal_records: {
+          description: 'Get member NEX withdrawal records',
+          params: [
+            { name: 'entity_id', type: 'u64' },
+            { name: 'account', type: 'AccountId' },
+          ],
+          type: 'Vec<WithdrawalRecordView>',
         },
       },
       version: 1,
@@ -350,6 +404,21 @@ export const runtimeDefs: DefinitionsCall = {
             { name: 'page_index', type: 'u32' },
           ],
           type: 'PaginatedGenerationResult',
+        },
+      },
+      version: 1,
+    },
+  ],
+  PoolRewardDetailApi: [
+    {
+      methods: {
+        get_pool_reward_member_view: {
+          description: 'Get comprehensive pool reward member view',
+          params: [
+            { name: 'entity_id', type: 'u64' },
+            { name: 'account', type: 'AccountId' },
+          ],
+          type: 'Option<PoolRewardMemberView>',
         },
       },
       version: 1,

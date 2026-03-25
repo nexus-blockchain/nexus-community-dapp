@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Star, Package, ShoppingCart, Banknote, Store } from 'lucide-react';
 import { ProductImage } from '@/components/ui/product-image';
+import { ProductCard } from '@/components/ui/product-card';
 import { useShop } from '@/hooks/use-shop';
 import { useShopProducts } from '@/hooks/use-product';
 import { useIpfsContents, useIpfsContent } from '@/hooks/use-ipfs-content';
@@ -138,54 +139,19 @@ export default function ShopDetailClient({ params }: { params: { id: string } })
               </Card>
             ) : (
               <div className="grid grid-cols-2 gap-3">
-                {products.map((product) => {
-                  const dynNex = toNex(product.usdtPrice);
-                  return (
-                    <Link key={product.id} href={`/product/${product.id}`}>
-                      <Card className="h-full transition-colors hover:border-primary/50">
-                        <CardContent className="p-3">
-                          <div className="relative flex h-24 items-center justify-center overflow-hidden rounded-lg bg-primary/10">
-                            <ProductImage cid={product.imagesCid} />
-                          </div>
-                          <div className="mt-2">
-                            <p className="truncate text-sm font-medium">
-                              {nameMap.get(product.nameCid) || t('productNumber', { id: product.id })}
-                            </p>
-                            {product.usdtPrice > 0 && (
-                              <p className="mt-1 text-sm font-semibold text-primary">
-                                ${formatUsdt(product.usdtPrice)} USDT
-                              </p>
-                            )}
-                            {dynNex ? (
-                              <p className="text-xs text-muted-foreground">
-                                ≈ {formatBalance(dynNex)} NEX
-                                {marketRate && (
-                                  <span className="ml-1 opacity-60">
-                                    @${formatNexPrice(marketRate)}
-                                  </span>
-                                )}
-                              </p>
-                            ) : product.usdtPrice <= 0 ? (
-                              <p className="mt-1 text-sm font-semibold text-primary">
-                                {formatBalance(product.price)} NEX
-                              </p>
-                            ) : null}
-                            <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-                              <span>
-                                {product.stock === 0
-                                  ? t('stockUnlimited')
-                                  : t('stock', { count: product.stock - product.soldCount })}
-                              </span>
-                              {product.soldCount > 0 && (
-                                <span>{t('sold', { count: product.soldCount })}</span>
-                              )}
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </Link>
-                  );
-                })}
+                {products.map((product) => (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    name={nameMap.get(product.nameCid)}
+                    loadingText={t('productNumber', { id: product.id })}
+                    dynNex={toNex(product.usdtPrice)}
+                    marketRate={marketRate}
+                    stockUnlimitedText={t('stockUnlimited')}
+                    stockText={(n) => t('stock', { count: n })}
+                    soldText={(n) => t('sold', { count: n })}
+                  />
+                ))}
               </div>
             )}
           </div>

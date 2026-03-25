@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { decodeAddress } from '@polkadot/util-crypto';
 import { useApi } from '@/lib/chain';
 import { useWallet } from './use-wallet';
 import { useLocalWallet } from './use-local-wallet';
@@ -50,6 +51,13 @@ export function useTransfer() {
       try {
         setTxState({ status: 'signing', hash: null, error: null, blockNumber: null });
 
+        // Validate recipient address
+        try {
+          decodeAddress(to);
+        } catch {
+          throw new Error('Invalid recipient address');
+        }
+
         const tx = api.tx.balances.transferKeepAlive(to, amount);
 
         if (source === 'local' && password) {
@@ -65,46 +73,54 @@ export function useTransfer() {
 
           setTxState((prev) => ({ ...prev, status: 'broadcasting' }));
 
-          await new Promise<void>((resolve, reject) => {
-            tx.signAndSend(pair, ({ status, dispatchError }: any) => {
-              if (status.isInBlock) {
-                setTxState({ status: 'inBlock', hash: status.asInBlock.toHex(), error: null, blockNumber: null });
-              }
-              if (status.isFinalized) {
-                const blockHash = status.asFinalized.toHex();
-                if (dispatchError) {
-                  let errorMsg = 'Transaction failed';
-                  if (dispatchError.isModule) {
-                    const decoded = api.registry.findMetaError(dispatchError.asModule);
-                    errorMsg = `${decoded.section}.${decoded.name}: ${decoded.docs.join(' ')}`;
-                  }
-                  setTxState({ status: 'error', hash: blockHash, error: errorMsg, blockNumber: null });
-                  reject(new Error(errorMsg));
-                  return;
+          try {
+            await new Promise<void>((resolve, reject) => {
+              let unsub: (() => void) | undefined;
+              tx.signAndSend(pair, ({ status, dispatchError }: any) => {
+                if (status.isInBlock) {
+                  setTxState({ status: 'inBlock', hash: status.asInBlock.toHex(), error: null, blockNumber: null });
                 }
-                setTxState({ status: 'finalized', hash: blockHash, error: null, blockNumber: null });
-                useTransferHistoryStore.getState().addRecord({
-                  from: address, to, amount: amount.toString(), hash: blockHash, timestamp: Date.now(),
-                });
-                refreshBalance();
-                resolve();
-              }
-            }).catch((err: Error) => {
-              setTxState({ status: 'error', hash: null, error: err.message, blockNumber: null });
-              reject(err);
+                if (status.isFinalized) {
+                  unsub?.();
+                  const blockHash = status.asFinalized.toHex();
+                  if (dispatchError) {
+                    let errorMsg = 'Transaction failed';
+                    if (dispatchError.isModule) {
+                      const decoded = api.registry.findMetaError(dispatchError.asModule);
+                      errorMsg = `${decoded.section}.${decoded.name}: ${decoded.docs.join(' ')}`;
+                    }
+                    setTxState({ status: 'error', hash: blockHash, error: errorMsg, blockNumber: null });
+                    reject(new Error(errorMsg));
+                    return;
+                  }
+                  setTxState({ status: 'finalized', hash: blockHash, error: null, blockNumber: null });
+                  useTransferHistoryStore.getState().addRecord({
+                    from: address, to, amount: amount.toString(), hash: blockHash, timestamp: Date.now(),
+                  });
+                  refreshBalance();
+                  resolve();
+                }
+              }).then((u: () => void) => { unsub = u; }).catch((err: Error) => {
+                setTxState({ status: 'error', hash: null, error: err.message, blockNumber: null });
+                reject(err);
+              });
             });
-          });
+          } finally {
+            pair.lock();
+          }
         } else {
           // Extension wallet: use signer
           const signer = await getSigner();
           setTxState((prev) => ({ ...prev, status: 'broadcasting' }));
 
           await new Promise<void>((resolve, reject) => {
+            let unsub: (() => void) | undefined;
             tx.signAndSend(address, { signer }, ({ status, dispatchError }: any) => {
               if (status.isInBlock) {
                 setTxState({ status: 'inBlock', hash: status.asInBlock.toHex(), error: null, blockNumber: null });
               }
               if (status.isFinalized) {
+                unsub?.();
                 const blockHash = status.asFinalized.toHex();
                 if (dispatchError) {
                   let errorMsg = 'Transaction failed';
@@ -123,7 +139,7 @@ export function useTransfer() {
                 refreshBalance();
                 resolve();
               }
-            }).catch((err: Error) => {
+            }).then((u: () => void) => { unsub = u; }).catch((err: Error) => {
               setTxState({ status: 'error', hash: null, error: err.message, blockNumber: null });
               reject(err);
             });
@@ -131,12 +147,14 @@ export function useTransfer() {
         }
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : 'Unknown error';
-        if (txState.status !== 'error') {
-          setTxState({ status: 'error', hash: null, error: errorMsg, blockNumber: null });
-        }
+        setTxState((prev) =>
+          prev.status !== 'error'
+            ? { status: 'error', hash: null, error: errorMsg, blockNumber: null }
+            : prev,
+        );
       }
     },
-    [api, address, source, isLocked, getSigner, unlockWallet, refreshBalance, txState.status],
+    [api, address, source, isLocked, getSigner, unlockWallet, refreshBalance],
   );
 
   return { transfer, txState, reset };

@@ -578,6 +578,15 @@ export interface WithdrawalConfig {
   enabled: boolean;
 }
 
+/** 链上提现记录（来自 Runtime API） */
+export interface WithdrawalRecordView {
+  totalAmount: string;
+  withdrawn: string;
+  repurchased: string;
+  bonus: string;
+  blockNumber: number;
+}
+
 // ---------------------------------------------------------------------------
 // Commission Dashboard API
 // ---------------------------------------------------------------------------
@@ -619,6 +628,8 @@ export interface TeamTierInfo {
   name: string;
   rate: number;
   totalEarned: string;
+  nextThreshold: string | null;
+  nextMinTeamSize: number | null;
 }
 
 export interface SingleLineSnapshot {

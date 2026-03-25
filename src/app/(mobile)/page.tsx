@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl';
 import { PageContainer } from '@/components/layout/page-container';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ProductImage } from '@/components/ui/product-image';
+import { ProductCard } from '@/components/ui/product-card';
 import {
   ShoppingBag, ShoppingCart, Coins, UserPlus, TrendingUp,
   Megaphone, FileText, Pin, AlertTriangle, Network, Package,
@@ -95,18 +95,18 @@ export default function CommunityHomePage() {
   const { contentMap: productNameMap } = useIpfsContents(productNameCids);
 
   const quickActions = [
-    { label: t('home.viewShops'), icon: ShoppingBag, href: '/mall', color: 'text-info' },
-    { label: t('home.myOrders'), icon: ShoppingCart, href: '/me', color: 'text-success' },
-    { label: t('home.myEarnings'), icon: Coins, href: '/earnings', color: 'text-warning' },
-    { label: t('home.inviteFriends'), icon: UserPlus, href: '/member/invite', color: 'text-primary' },
-    { label: t('home.tokenMarket'), icon: TrendingUp, href: '/market', color: 'text-accent' },
-    { label: t('home.referralNetwork'), icon: Network, href: '/member/network', color: 'text-info' },
+    { key: 'viewShops', label: t('home.viewShops'), icon: ShoppingBag, href: '/mall', color: 'text-info' },
+    { key: 'myOrders', label: t('home.myOrders'), icon: ShoppingCart, href: '/me', color: 'text-success' },
+    { key: 'myEarnings', label: t('home.myEarnings'), icon: Coins, href: '/earnings', color: 'text-warning' },
+    { key: 'inviteFriends', label: t('home.inviteFriends'), icon: UserPlus, href: '/member/invite', color: 'text-primary' },
+    { key: 'tokenMarket', label: t('home.tokenMarket'), icon: TrendingUp, href: '/market', color: 'text-accent' },
+    { key: 'referralNetwork', label: t('home.referralNetwork'), icon: Network, href: '/member/network', color: 'text-info' },
   ];
 
   const activeOrders = (orders ?? []).filter((o) => !['Completed', 'Refunded', 'Cancelled'].includes(o.status));
 
   // Merge pinned + regular announcements, deduplicate by id
-  const allAnnouncements = (() => {
+  const allAnnouncements = useMemo(() => {
     const pinned = pinnedAnnouncements ?? [];
     const regular = announcements ?? [];
     const seen = new Set<number>();
@@ -118,7 +118,7 @@ export default function CommunityHomePage() {
       }
     }
     return merged.slice(0, 5);
-  })();
+  }, [pinnedAnnouncements, announcements]);
 
   // Resolve announcement contentCid → readable text
   const announcementCids = useMemo(
@@ -196,7 +196,7 @@ export default function CommunityHomePage() {
             <CardContent>
               <div className="grid grid-cols-3 gap-3">
                 {quickActions.map((action) => (
-                  <Link key={action.href} href={action.href}>
+                  <Link key={action.key} href={action.href}>
                     <div className="flex flex-col items-center gap-2 rounded-lg bg-secondary p-3 transition-colors hover:bg-secondary/80">
                       <action.icon className={`h-6 w-6 ${action.color}`} />
                       <span className="text-xs">{action.label}</span>
@@ -223,51 +223,18 @@ export default function CommunityHomePage() {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 gap-3">
-                  {recommendedProducts.map((product) => {
-                    const dynNex = toNex(product.usdtPrice);
-                    return (
-                      <Link key={product.id} href={`/product/${product.id}`}>
-                        <Card className="h-full transition-colors hover:border-primary/50">
-                          <CardContent className="p-2.5">
-                            <div className="relative flex h-24 items-center justify-center overflow-hidden rounded-lg bg-primary/10">
-                              <ProductImage cid={product.imagesCid} />
-                            </div>
-                            <div className="mt-2">
-                              {product.nameCid && (
-                                <p className="truncate text-sm font-medium">
-                                  {productNameMap.get(product.nameCid) || tMall('loading')}
-                                </p>
-                              )}
-                              {product.usdtPrice > 0 && (
-                                <p className="text-sm font-semibold text-primary">
-                                  ${formatUsdt(product.usdtPrice)} USDT
-                                </p>
-                              )}
-                              {dynNex ? (
-                                <p className="text-xs text-muted-foreground">
-                                  ≈ {formatBalance(dynNex)} NEX
-                                </p>
-                              ) : product.usdtPrice <= 0 ? (
-                                <p className="text-sm font-semibold text-primary">
-                                  {formatBalance(product.price, 12, 0)} NEX
-                                </p>
-                              ) : null}
-                              <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-                                <span>
-                                  {product.stock === 0
-                                    ? tShop('stockUnlimited')
-                                    : tShop('stock', { count: product.stock - product.soldCount })}
-                                </span>
-                                {product.soldCount > 0 && (
-                                  <span>{tShop('sold', { count: product.soldCount })}</span>
-                                )}
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      </Link>
-                    );
-                  })}
+                  {recommendedProducts.map((product) => (
+                    <ProductCard
+                      key={product.id}
+                      product={product}
+                      name={productNameMap.get(product.nameCid)}
+                      loadingText={tMall('loading')}
+                      dynNex={toNex(product.usdtPrice)}
+                      stockUnlimitedText={tShop('stockUnlimited')}
+                      stockText={(n) => tShop('stock', { count: n })}
+                      soldText={(n) => tShop('sold', { count: n })}
+                    />
+                  ))}
                 </div>
               </CardContent>
             </Card>

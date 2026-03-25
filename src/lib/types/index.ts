@@ -67,6 +67,7 @@ export type {
   TokenCommissionMemberStats,
   WithdrawalTierConfig,
   WithdrawalConfig,
+  WithdrawalRecordView,
   // Commission Dashboard API
   NexCommissionStats,
   TokenCommissionStats,

@@ -16,17 +16,18 @@ import {
   XCircle, AlertTriangle, Clock,
 } from 'lucide-react';
 import { HelpTip } from '@/components/ui/help-tip';
+import { ORDER_STATUS_VARIANT, ORDER_STATUS_ICON } from '@/lib/constants/order-status';
 import { useOrder, useCancelOrder, useShipOrder, useConfirmReceipt, useRequestRefund, useApproveRefund, useRejectRefund, useSellerCancelOrder, useStartService, useCompleteService, useConfirmService, useWithdrawDispute } from '@/hooks/use-order';
 import { useProduct } from '@/hooks/use-product';
 import { useIpfsContent } from '@/hooks/use-ipfs-content';
 import { useNexPrice } from '@/hooks/use-nex-price';
 import { useWalletStore } from '@/stores';
-import { formatBalance, formatUsdt, shortAddress } from '@/lib/utils/chain-helpers';
+import { formatBalance, formatUsdt, shortAddress, isTxBusy } from '@/lib/utils/chain-helpers';
 
 function TxStatusBar({ txState }: { txState: any }) {
   const tTx = useTranslations('tx');
   if (txState.status === 'idle') return null;
-  const isBusy = ['signing', 'broadcasting', 'inBlock'].includes(txState.status);
+  const isBusy = isTxBusy(txState);
   return (
     <div className="flex items-center gap-2 rounded-lg bg-secondary p-3 text-sm">
       {isBusy && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
@@ -82,15 +83,15 @@ export default function OrderDetailClient({ params }: { params: { id: string } }
   const activeTx = [cancelOrder, shipOrder, confirmReceipt, requestRefund, approveRefund, rejectRefund, sellerCancel, startService, completeService, confirmService, withdrawDispute].find(
     (m) => m.txState.status !== 'idle',
   );
-  const isBusy = activeTx && ['signing', 'broadcasting', 'inBlock'].includes(activeTx.txState.status);
+  const isBusy = activeTx && isTxBusy(activeTx.txState);
 
   const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'success' | 'warning' | 'destructive'; icon: any }> = {
-    Paid: { label: t('statusPaid'), variant: 'default', icon: Clock },
-    Shipped: { label: t('statusShipped'), variant: 'warning', icon: Truck },
-    Completed: { label: t('statusCompleted'), variant: 'success', icon: CheckCircle2 },
-    Disputed: { label: t('statusDisputed'), variant: 'destructive', icon: AlertTriangle },
-    Refunded: { label: t('statusRefunded'), variant: 'secondary', icon: XCircle },
-    Cancelled: { label: t('statusCancelled'), variant: 'secondary', icon: XCircle },
+    Paid: { label: t('statusPaid'), variant: ORDER_STATUS_VARIANT.Paid, icon: ORDER_STATUS_ICON.Paid },
+    Shipped: { label: t('statusShipped'), variant: ORDER_STATUS_VARIANT.Shipped, icon: ORDER_STATUS_ICON.Shipped },
+    Completed: { label: t('statusCompleted'), variant: ORDER_STATUS_VARIANT.Completed, icon: ORDER_STATUS_ICON.Completed },
+    Disputed: { label: t('statusDisputed'), variant: ORDER_STATUS_VARIANT.Disputed, icon: ORDER_STATUS_ICON.Disputed },
+    Refunded: { label: t('statusRefunded'), variant: ORDER_STATUS_VARIANT.Refunded, icon: ORDER_STATUS_ICON.Refunded },
+    Cancelled: { label: t('statusCancelled'), variant: ORDER_STATUS_VARIANT.Cancelled, icon: ORDER_STATUS_ICON.Cancelled },
   };
 
   const st = statusConfig[order?.status ?? ''] ?? { label: order?.status ?? '', variant: 'secondary' as const, icon: Clock };

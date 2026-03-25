@@ -19,6 +19,10 @@ export function useLocalWallet() {
   /** Create a new wallet from a random mnemonic */
   const createWallet = useCallback(
     async (name: string, password: string): Promise<{ mnemonic: string; address: string }> => {
+      if (password.length < 8) {
+        throw new Error('Password must be at least 8 characters');
+      }
+
       await cryptoWaitReady();
       hydrate();
 
@@ -51,7 +55,11 @@ export function useLocalWallet() {
       await cryptoWaitReady();
       hydrate();
 
-      const trimmed = mnemonic.trim();
+      if (password.length < 8) {
+        throw new Error('Password must be at least 8 characters');
+      }
+
+      const trimmed = mnemonic.trim().replace(/\s+/g, ' ');
       if (!mnemonicValidate(trimmed)) {
         throw new Error('Invalid mnemonic phrase');
       }
@@ -85,7 +93,7 @@ export function useLocalWallet() {
     [addAccount, hydrate],
   );
 
-  /** Unlock a local wallet by password → returns the unlocked KeyringPair */
+  /** Unlock a local wallet by password → returns the unlocked KeyringPair (caller must lock after use) */
   const unlockWallet = useCallback(
     async (address: string, password: string): Promise<KeyringPair> => {
       await cryptoWaitReady();
@@ -105,22 +113,6 @@ export function useLocalWallet() {
     [hydrate],
   );
 
-  /** Get a Signer-compatible object from a local keypair */
-  const getLocalSigner = useCallback(
-    async (address: string, password: string) => {
-      const pair = await unlockWallet(address, password);
-
-      return {
-        signPayload: async (payload: any) => {
-          const { u8aToHex } = await import('@polkadot/util');
-          const signature = pair.sign(payload.data);
-          return { id: 0, signature: u8aToHex(signature) };
-        },
-      };
-    },
-    [unlockWallet],
-  );
-
   /** Export the mnemonic for a local wallet (decrypt with password) */
   const exportMnemonic = useCallback(
     async (address: string, password: string): Promise<string> => {
@@ -131,7 +123,8 @@ export function useLocalWallet() {
       if (!account.encryptedMnemonic) throw new Error('MNEMONIC_NOT_STORED');
 
       // Verify password is correct by attempting to unlock the keypair first
-      await unlockWallet(address, password);
+      const pair = await unlockWallet(address, password);
+      pair.lock();
 
       return decryptMnemonic(account.encryptedMnemonic, password);
     },
@@ -142,7 +135,6 @@ export function useLocalWallet() {
     createWallet,
     importWallet,
     unlockWallet,
-    getLocalSigner,
     exportMnemonic,
   };
 }

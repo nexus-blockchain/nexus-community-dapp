@@ -1,6 +1,8 @@
-/** Hardcoded seed nodes — always available as fallback */
+/** Hardcoded seed nodes — local development only.
+ * Production deployments MUST set NEXT_PUBLIC_WS_ENDPOINTS env var
+ * with wss:// endpoints. This localhost fallback will NOT work in production. */
 export const SEED_NODES: string[] = [
-  'ws://202.140.140.202:9944',
+  'ws://127.0.0.1:9944',
 ];
 
 /** Node health probe configuration */
@@ -52,6 +54,11 @@ export function getConfiguredEndpoints(): string[] {
   const base: string[] = multi
     ? multi.split(',').map((s) => s.trim()).filter(Boolean)
     : [...SEED_NODES];
+
+  // Warn if using unencrypted ws:// in production
+  if (typeof window !== 'undefined' && base.some((e) => e.startsWith('ws://') && !e.includes('127.0.0.1') && !e.includes('localhost'))) {
+    console.warn('[nexus] Using unencrypted ws:// for remote node. Consider wss:// for production.');
+  }
 
   // 2. merge cached discovered nodes
   if (typeof window !== 'undefined') {
@@ -110,4 +117,8 @@ export const DANGEROUS_OPERATIONS = [
   'lockGovernance',
   'banMember',
   'burnTokens',
+  'leaveEntity',
+  'sellerCancelOrder',
+  'approveRefund',
+  'withdrawCommission',
 ] as const;

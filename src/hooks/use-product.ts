@@ -3,21 +3,8 @@
 import { useEntityQuery } from './use-entity-query';
 import { useEntityMutation } from './use-entity-mutation';
 import { STALE_TIMES } from '@/lib/chain/constants';
-import { bytesToString } from '@/lib/utils/chain-helpers';
+import { bytesToString, parseChainEnum } from '@/lib/utils/chain-helpers';
 import type { Product } from '@/lib/types';
-
-/** Parse chain enum — may be a string "OnSale" or an object { onSale: null } */
-function parseEnum(raw: unknown, fallback: string): string {
-  if (typeof raw === 'string') return raw;
-  if (raw && typeof raw === 'object') {
-    const key = Object.keys(raw)[0];
-    if (key) {
-      // Convert camelCase to PascalCase: "membersOnly" → "MembersOnly", "onSale" → "OnSale"
-      return key.charAt(0).toUpperCase() + key.slice(1);
-    }
-  }
-  return fallback;
-}
 
 function parseProduct(data: any): Product {
   return {
@@ -30,12 +17,12 @@ function parseProduct(data: any): Product {
     usdtPrice: data.usdtPrice ?? data.usdt_price ?? 0,
     stock: data.stock ?? 0,
     soldCount: data.soldCount ?? data.sold_count ?? 0,
-    status: parseEnum(data.status, 'Draft'),
-    category: parseEnum(data.category, 'Physical'),
+    status: parseChainEnum(data.status, 'Draft'),
+    category: parseChainEnum(data.category, 'Physical'),
     sortWeight: data.sortWeight ?? data.sort_weight ?? 0,
     minOrderQuantity: data.minOrderQuantity ?? data.min_order_quantity ?? 0,
     maxOrderQuantity: data.maxOrderQuantity ?? data.max_order_quantity ?? 0,
-    visibility: parseEnum(data.visibility, 'Public'),
+    visibility: parseChainEnum(data.visibility, 'Public'),
     createdAt: data.createdAt ?? data.created_at ?? 0,
     updatedAt: data.updatedAt ?? data.updated_at ?? 0,
   } as Product;

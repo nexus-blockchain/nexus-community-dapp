@@ -71,7 +71,7 @@ export function useMemberDashboard(entityId: number | null, address: string | nu
         isQualifiedReferral: data.isQualifiedReferral ?? data.is_qualified_referral ?? false,
         isBanned: data.isBanned ?? data.is_banned ?? false,
         bannedAt: data.bannedAt ?? data.banned_at ?? null,
-        banReason: data.banReason ?? data.ban_reason ? bytesToString(data.banReason ?? data.ban_reason) : null,
+        banReason: (data.banReason ?? data.ban_reason) ? bytesToString(data.banReason ?? data.ban_reason) : null,
         levelExpiresAt: data.levelExpiresAt ?? data.level_expires_at ?? null,
         upgradeHistory: (data.upgradeHistory ?? data.upgrade_history ?? []).map((r: any) => ({
           ruleId: r.ruleId ?? r.rule_id ?? 0,
@@ -138,7 +138,7 @@ export function useMembersPaginated(entityId: number | null, pageSize: number, p
           teamSize: m.teamSize ?? m.team_size ?? 0,
           joinedAt: m.joinedAt ?? m.joined_at ?? 0,
           isBanned: m.isBanned ?? m.is_banned ?? false,
-          banReason: m.banReason ?? m.ban_reason ? bytesToString(m.banReason ?? m.ban_reason) : null,
+          banReason: (m.banReason ?? m.ban_reason) ? bytesToString(m.banReason ?? m.ban_reason) : null,
         })),
         total: data.total ?? 0,
         hasMore: data.hasMore ?? data.has_more ?? false,

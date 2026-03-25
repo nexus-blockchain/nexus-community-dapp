@@ -14,7 +14,6 @@
     "open:android": "npx cap open android"
   },
   "dependencies": {
-    "@capacitor/android": "^8.2.0",
     "@capacitor/clipboard": "^8.0.1",
     "@capacitor/core": "^8.2.0",
     "@polkadot/api": "^16.5.4",
@@ -40,10 +39,10 @@
     "recharts": "^2.14.1",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
-    "zod": "^3.24.0",
     "zustand": "^5.0.0"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.2.0",
     "@capacitor/cli": "^8.2.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
@@ -57,6 +56,7 @@
     "jsdom": "^28.1.0",
     "postcss": "^8",
     "tailwindcss": "^3.4.16",
+    "terser-webpack-plugin": "^5.3.10",
     "typescript": "^5.7.0",
     "vitest": "^4.0.18"
   }

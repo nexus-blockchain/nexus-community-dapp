@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { MobileHeader } from '@/components/layout/mobile-header';
 import { PageContainer } from '@/components/layout/page-container';
@@ -15,7 +15,7 @@ import {
   useNexOrderBookDepth, useNexOrderBook, useNexUserOrders, useNexCancelOrder,
   useFirstOrderStatus, useNexUserTrades,
 } from '@/hooks/use-nex-global-market';
-import { formatBalance } from '@/lib/utils/chain-helpers';
+import { formatBalance, isTxBusy } from '@/lib/utils/chain-helpers';
 import {
   PricePanel, StatsBar, OrderBook, TradeForm,
   PriceChart, MyOrders, TradeHistory,
@@ -40,7 +40,8 @@ export default function MarketPage() {
   const { data: trades } = useEntityTradeHistory(currentEntityId);
   const { asks, bids, maxDepth, isLoading: bookLoading } = useOrderBookDepth(currentEntityId);
 
-  const change24h = useMemo(() => {
+  // Price change computed over full available trade history (not strictly 24h)
+  const changePercent = useMemo(() => {
     if (!trades || trades.length < 2) return null;
     const latest = Number(BigInt(trades[0].price));
     const oldest = Number(BigInt(trades[trades.length - 1].price));
@@ -67,11 +68,13 @@ export default function MarketPage() {
   const { data: nexUserOrders } = useNexUserOrders(address);
   const firstOrderStatus = useFirstOrderStatus(address);
   const nexCancelOrder = useNexCancelOrder();
+  const nexCancelOrderRef = useRef(nexCancelOrder);
+  nexCancelOrderRef.current = nexCancelOrder;
   const { data: nexUserTrades } = useNexUserTrades(address);
 
   const handleNexCancelOrder = useCallback((orderId: number) => {
-    nexCancelOrder.mutate([orderId]);
-  }, [nexCancelOrder]);
+    nexCancelOrderRef.current.mutate([orderId]);
+  }, []);
 
   const [orderPrefill, setOrderPrefill] = useState<OrderActionPrefill | null>(null);
 
@@ -121,7 +124,7 @@ export default function MarketPage() {
               <NexMyOrders
                 orders={nexUserOrders}
                 onCancelOrder={handleNexCancelOrder}
-                cancelLoading={['signing', 'broadcasting', 'inBlock'].includes(nexCancelOrder.txState.status)}
+                cancelLoading={isTxBusy(nexCancelOrder.txState)}
               />
               <NexPricePanel
                 stats={nexStats}
@@ -159,7 +162,7 @@ export default function MarketPage() {
                 lastPrice={lastPrice}
                 bestAsk={bestPrices?.bestAsk}
                 bestBid={bestPrices?.bestBid}
-                change24h={change24h}
+                change24h={changePercent}
               />
               <StatsBar stats={stats} isLoading={statsLoading} />
               <PriceChart trades={trades} />

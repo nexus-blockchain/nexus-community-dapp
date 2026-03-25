@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-  Package, Clock, Truck, CheckCircle2, XCircle, AlertTriangle,
+  Package,
   ShoppingBag, ChevronRight,
 } from 'lucide-react';
 import { useWalletStore } from '@/stores';
@@ -18,6 +18,7 @@ import { useBuyerOrders } from '@/hooks/use-order';
 import { useIpfsContents } from '@/hooks/use-ipfs-content';
 import { useEntityQuery } from '@/hooks/use-entity-query';
 import { formatBalance, bytesToString } from '@/lib/utils/chain-helpers';
+import { ORDER_STATUS_VARIANT, ORDER_STATUS_ICON } from '@/lib/constants/order-status';
 import { STALE_TIMES } from '@/lib/chain/constants';
 import type { Order, Product } from '@/lib/types';
 
@@ -25,24 +26,6 @@ import type { Order, Product } from '@/lib/types';
 // Status filter
 // ─────────────────────────────────────────────
 type StatusFilter = 'all' | 'active' | 'shipped' | 'completed' | 'disputed' | 'closed';
-
-const STATUS_ICON: Record<string, typeof Clock> = {
-  Paid: Clock,
-  Shipped: Truck,
-  Completed: CheckCircle2,
-  Disputed: AlertTriangle,
-  Refunded: XCircle,
-  Cancelled: XCircle,
-};
-
-const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'success' | 'warning' | 'destructive'> = {
-  Paid: 'default',
-  Shipped: 'warning',
-  Completed: 'success',
-  Disputed: 'destructive',
-  Refunded: 'secondary',
-  Cancelled: 'secondary',
-};
 
 function matchFilter(status: string, filter: StatusFilter): boolean {
   switch (filter) {
@@ -105,8 +88,8 @@ function OrderCard({
   productName: string | undefined;
 }) {
   const t = useTranslations('myOrders');
-  const Icon = STATUS_ICON[order.status] ?? Clock;
-  const variant = STATUS_VARIANT[order.status] ?? 'secondary';
+  const Icon = ORDER_STATUS_ICON[order.status] ?? ORDER_STATUS_ICON.Paid;
+  const variant = ORDER_STATUS_VARIANT[order.status] ?? 'secondary';
 
   const statusLabel =
     order.status === 'Paid' ? t('statusPaid') :

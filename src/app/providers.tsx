@@ -8,8 +8,12 @@ import { ApiProvider } from '@/lib/chain/api-provider';
 import { Toaster } from '@/components/ui/toaster';
 import { UnlockDialog } from '@/components/wallet/unlock-dialog';
 import { SigningDialog } from '@/components/wallet/signing-dialog';
+import { ConfirmDialog } from '@/components/wallet/confirm-dialog';
 import { useAutoLock } from '@/hooks/use-auto-lock';
 import { useLocaleStore } from '@/stores/locale-store';
+import { useWalletStore } from '@/stores/wallet-store';
+import { useEntityStore } from '@/stores/entity-store';
+import { useNodeHealthStore } from '@/stores/node-health-store';
 import { getMessages, defaultMessages, defaultLocale, type Locale } from '@/i18n/config';
 
 // Pre-warm WASM crypto so wallet creation/import is instant
@@ -72,6 +76,17 @@ function WalletLockGuard() {
   return <UnlockDialog />;
 }
 
+/** Hydrate all Zustand stores from localStorage after first client render */
+function StoreHydration() {
+  useEffect(() => {
+    useWalletStore.getState()._hydrate();
+    useEntityStore.getState()._hydrate();
+    useLocaleStore.getState()._hydrate();
+    useNodeHealthStore.getState()._hydrate();
+  }, []);
+  return null;
+}
+
 export function Providers({ children }: { children: React.ReactNode }) {
   const queryClient = getQueryClient();
 
@@ -83,6 +98,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
           <Toaster />
           <WalletLockGuard />
           <SigningDialog />
+          <ConfirmDialog />
+          <StoreHydration />
         </IntlProvider>
       </ApiProvider>
     </QueryClientProvider>

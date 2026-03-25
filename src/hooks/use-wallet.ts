@@ -5,6 +5,7 @@ import type { InjectedAccountWithMeta } from '@polkadot/extension-inject/types';
 import type { Signer } from '@polkadot/types/types';
 import { useWalletStore } from '@/stores/wallet-store';
 import { useLocalAccountsStore } from '@/stores/local-accounts-store';
+import { decodeAddress } from '@polkadot/util-crypto';
 
 const APP_NAME = 'NEXUS Community dApp';
 
@@ -99,6 +100,13 @@ export function useWallet() {
         ? account.name
         : ((account as InjectedAccountWithMeta).meta?.name || 'Unknown');
       const acctAddress = account.address;
+
+      // Validate SS58 address format
+      try {
+        decodeAddress(acctAddress);
+      } catch {
+        throw new Error('Invalid account address');
+      }
 
       if (src === 'local') {
         // Local wallet — no signer needed at connect time

@@ -3,6 +3,7 @@
 import { useEntityQuery, hasPallet } from './use-entity-query';
 import { useEntity } from './use-entity';
 import { STALE_TIMES } from '@/lib/chain/constants';
+import { MODL_PREFIX } from '@/lib/utils/chain-helpers';
 import { useWalletStore, useEntityStore } from '@/stores';
 import { encodeAddress } from '@polkadot/util-crypto';
 import { u8aConcat, stringToU8a, bnToU8a } from '@polkadot/util';
@@ -14,7 +15,6 @@ import { BN } from '@polkadot/util';
 // = b"modl" ++ pallet_id(8) ++ sub_seed ++ zero-pad → 32 bytes
 // ─────────────────────────────────────────────
 
-const MODL_PREFIX = stringToU8a('modl');
 const ENTITY_PALLET_ID = stringToU8a('et/enty/');
 
 function deriveEntityTreasuryAccount(entityId: number): string {
@@ -23,7 +23,7 @@ function deriveEntityTreasuryAccount(entityId: number): string {
   // Pad to 32 bytes (AccountId32)
   const accountBytes = new Uint8Array(32);
   accountBytes.set(raw.subarray(0, Math.min(raw.length, 32)));
-  return encodeAddress(accountBytes, 42);
+  return encodeAddress(accountBytes, 273);
 }
 
 // ─────────────────────────────────────────────

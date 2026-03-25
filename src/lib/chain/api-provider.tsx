@@ -165,7 +165,9 @@ export function ApiProvider({
     initNodes(seedEndpoints.length > 0 ? seedEndpoints : endpoints, discoveredEndpoints);
     setDiscoveredNodeCount(cached.length);
 
-    const ordered = orderEndpoints(endpoints, preferredEndpoint, storeNodes);
+    // Read latest values from store instead of stale closure
+    const currentState = useNodeHealthStore.getState();
+    const ordered = orderEndpoints(endpoints, currentState.preferredEndpoint, currentState.nodes);
     createConnection(ordered);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [endpoint]);

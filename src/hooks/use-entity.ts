@@ -2,7 +2,7 @@
 
 import { useEntityQuery } from './use-entity-query';
 import { STALE_TIMES } from '@/lib/chain/constants';
-import { bytesToString } from '@/lib/utils/chain-helpers';
+import { bytesToString, parseChainEnum } from '@/lib/utils/chain-helpers';
 import type { EntityInfo } from '@/lib/types';
 
 /** Query all active entities from the chain */
@@ -22,7 +22,7 @@ export function useAllEntities() {
           id: data.id,
           owner: data.owner ?? '',
           name,
-          entityType: parseEntityType(data.entityType ?? data.entity_type),
+          entityType: parseChainEnum(data.entityType ?? data.entity_type, 'Merchant'),
           status,
           verified: data.verified ?? false,
           primaryShopId: data.primaryShopId ?? data.primary_shop_id ?? 0,
@@ -49,7 +49,7 @@ export function useEntity(entityId: number | null) {
         id: data.id,
         owner: data.owner ?? '',
         name,
-        entityType: parseEntityType(data.entityType ?? data.entity_type),
+        entityType: parseChainEnum(data.entityType ?? data.entity_type, 'Merchant'),
         status: data.status ?? 'Active',
         verified: data.verified ?? false,
         primaryShopId: data.primaryShopId ?? data.primary_shop_id ?? 0,
@@ -58,14 +58,4 @@ export function useEntity(entityId: number | null) {
     },
     { staleTime: STALE_TIMES.entity, enabled: entityId != null },
   );
-}
-
-/** Parse entityType from chain — may be a string or an enum object like { merchant: null } */
-function parseEntityType(raw: unknown): string {
-  if (typeof raw === 'string') return raw;
-  if (raw && typeof raw === 'object') {
-    const key = Object.keys(raw)[0];
-    if (key) return key.charAt(0).toUpperCase() + key.slice(1);
-  }
-  return 'Merchant';
 }

@@ -8,9 +8,12 @@ import { useWallet } from './use-wallet';
 import { useLocalWallet } from './use-local-wallet';
 import { useWalletStore } from '@/stores/wallet-store';
 import { useSigningStore } from '@/stores/signing-store';
+import { parseDispatchError } from '@/lib/chain/error-parser';
 import type { TxState, ConfirmDialogConfig } from '@/lib/types';
 import { DANGEROUS_OPERATIONS } from '@/lib/chain/constants';
+import { useConfirmStore } from '@/stores/confirm-store';
 import {
+  checkAttemptAllowed,
   recordFailure,
   recordSuccess,
 } from '@/lib/utils/brute-force-protection';
@@ -32,6 +35,9 @@ export function useEntityMutation(
   const { unlockWallet } = useLocalWallet();
   const isLocked = useWalletStore((s) => s.isLocked);
   const requestPassword = useSigningStore((s) => s.requestPassword);
+  const signingDone = useSigningStore((s) => s.signingDone);
+  const signingFailed = useSigningStore((s) => s.signingFailed);
+  const requestConfirm = useConfirmStore((s) => s.requestConfirm);
   const queryClient = useQueryClient();
   const [txState, setTxState] = useState<TxState>({
     status: 'idle',
@@ -60,12 +66,23 @@ export function useEntityMutation(
       }
 
       try {
+        // Enforce confirmation for dangerous operations
+        if (needsConfirmation && options?.confirmDialog) {
+          const confirmed = await requestConfirm(options.confirmDialog);
+          if (!confirmed) return;
+        }
+
         setTxState({ status: 'signing', hash: null, error: null, blockNumber: null });
 
         const tx = (api.tx as any)[palletName][callName](...params);
 
         if (source === 'local') {
-          // Local wallet: prompt for password, unlock keypair via shared utility
+          // Local wallet: check brute force protection, then prompt for password
+          const bfCheck = checkAttemptAllowed(address);
+          if (!bfCheck.allowed) {
+            throw new Error(`Account locked. Try again in ${bfCheck.waitSeconds}s`);
+          }
+
           const password = await requestPassword();
 
           let pair;
@@ -73,51 +90,72 @@ export function useEntityMutation(
             pair = await unlockWallet(address, password);
           } catch {
             recordFailure(address);
+            signingFailed();
             throw new Error('Wrong password');
           }
           recordSuccess(address);
+          signingDone();
 
           setTxState((prev) => ({ ...prev, status: 'broadcasting' }));
 
-          await new Promise<void>((resolve, reject) => {
-            tx.signAndSend(pair, ({ status, dispatchError }: any) => {
-              if (status.isInBlock) {
-                const blockHash = status.asInBlock.toHex();
-                setTxState({ status: 'inBlock', hash: blockHash, error: null, blockNumber: null });
-              }
-
-              if (status.isFinalized) {
-                const blockHash = status.asFinalized.toHex();
-
-                if (dispatchError) {
-                  let errorMsg = 'Transaction failed';
-                  if (dispatchError.isModule) {
-                    const decoded = api.registry.findMetaError(dispatchError.asModule);
-                    errorMsg = `${decoded.section}.${decoded.name}: ${decoded.docs.join(' ')}`;
+          try {
+            await new Promise<void>((resolve, reject) => {
+              let unsub: (() => void) | undefined;
+              const unsubPromise = tx.signAndSend(pair, ({ status, dispatchError }: any) => {
+                if (status.isInBlock) {
+                  const blockHash = status.asInBlock.toHex();
+                  if (dispatchError) {
+                    let errorMsg = 'Transaction failed';
+                    if (dispatchError.isModule) {
+                      const parsed = parseDispatchError(api, dispatchError);
+                      errorMsg = parsed.message;
+                    }
+                    unsub?.();
+                    setTxState({ status: 'error', hash: blockHash, error: errorMsg, blockNumber: null });
+                    options?.onError?.(errorMsg);
+                    reject(new Error(errorMsg));
+                    return;
                   }
-                  setTxState({ status: 'error', hash: blockHash, error: errorMsg, blockNumber: null });
-                  options?.onError?.(errorMsg);
-                  reject(new Error(errorMsg));
-                  return;
+                  setTxState({ status: 'inBlock', hash: blockHash, error: null, blockNumber: null });
                 }
 
-                setTxState({ status: 'finalized', hash: blockHash, error: null, blockNumber: null });
+                if (status.isFinalized) {
+                  unsub?.();
+                  const blockHash = status.asFinalized.toHex();
 
-                if (options?.invalidateKeys) {
-                  for (const key of options.invalidateKeys) {
-                    queryClient.invalidateQueries({ queryKey: key });
+                  if (dispatchError) {
+                    let errorMsg = 'Transaction failed';
+                    if (dispatchError.isModule) {
+                      const parsed = parseDispatchError(api, dispatchError);
+                      errorMsg = parsed.message;
+                    }
+                    setTxState({ status: 'error', hash: blockHash, error: errorMsg, blockNumber: null });
+                    options?.onError?.(errorMsg);
+                    reject(new Error(errorMsg));
+                    return;
                   }
-                }
 
-                options?.onSuccess?.(blockHash);
-                resolve();
-              }
-            }).catch((err: Error) => {
-              setTxState({ status: 'error', hash: null, error: err.message, blockNumber: null });
-              options?.onError?.(err.message);
-              reject(err);
+                  setTxState({ status: 'finalized', hash: blockHash, error: null, blockNumber: null });
+
+                  if (options?.invalidateKeys) {
+                    for (const key of options.invalidateKeys) {
+                      queryClient.invalidateQueries({ queryKey: key });
+                    }
+                  }
+
+                  options?.onSuccess?.(blockHash);
+                  resolve();
+                }
+              });
+              unsubPromise.then((u: () => void) => { unsub = u; }).catch((err: Error) => {
+                setTxState({ status: 'error', hash: null, error: err.message, blockNumber: null });
+                options?.onError?.(err.message);
+                reject(err);
+              });
             });
-          });
+          } finally {
+            pair.lock();
+          }
         } else {
           // Extension wallet: use signer
           const signer = await getSigner();
@@ -125,20 +163,34 @@ export function useEntityMutation(
           setTxState((prev) => ({ ...prev, status: 'broadcasting' }));
 
           await new Promise<void>((resolve, reject) => {
-            tx.signAndSend(address, { signer }, ({ status, dispatchError }: any) => {
+            let unsub: (() => void) | undefined;
+            const unsubPromise = tx.signAndSend(address, { signer }, ({ status, dispatchError }: any) => {
               if (status.isInBlock) {
                 const blockHash = status.asInBlock.toHex();
+                if (dispatchError) {
+                  let errorMsg = 'Transaction failed';
+                  if (dispatchError.isModule) {
+                    const parsed = parseDispatchError(api, dispatchError);
+                    errorMsg = parsed.message;
+                  }
+                  unsub?.();
+                  setTxState({ status: 'error', hash: blockHash, error: errorMsg, blockNumber: null });
+                  options?.onError?.(errorMsg);
+                  reject(new Error(errorMsg));
+                  return;
+                }
                 setTxState({ status: 'inBlock', hash: blockHash, error: null, blockNumber: null });
               }
 
               if (status.isFinalized) {
+                unsub?.();
                 const blockHash = status.asFinalized.toHex();
 
                 if (dispatchError) {
                   let errorMsg = 'Transaction failed';
                   if (dispatchError.isModule) {
-                    const decoded = api.registry.findMetaError(dispatchError.asModule);
-                    errorMsg = `${decoded.section}.${decoded.name}: ${decoded.docs.join(' ')}`;
+                    const parsed = parseDispatchError(api, dispatchError);
+                    errorMsg = parsed.message;
                   }
                   setTxState({ status: 'error', hash: blockHash, error: errorMsg, blockNumber: null });
                   options?.onError?.(errorMsg);
@@ -157,7 +209,8 @@ export function useEntityMutation(
                 options?.onSuccess?.(blockHash);
                 resolve();
               }
-            }).catch((err: Error) => {
+            });
+            unsubPromise.then((u: () => void) => { unsub = u; }).catch((err: Error) => {
               setTxState({ status: 'error', hash: null, error: err.message, blockNumber: null });
               options?.onError?.(err.message);
               reject(err);
@@ -175,7 +228,7 @@ export function useEntityMutation(
         options?.onError?.(errorMsg);
       }
     },
-    [api, address, source, isLocked, getSigner, unlockWallet, requestPassword, palletName, callName, queryClient, options],
+    [api, address, source, isLocked, getSigner, unlockWallet, requestPassword, signingDone, signingFailed, requestConfirm, needsConfirmation, palletName, callName, queryClient, options],
   );
 
   return {

@@ -13,6 +13,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Loader2, Check, AlertCircle, MapPin, UserPlus, Wallet } from 'lucide-react';
 import { HelpTip } from '@/components/ui/help-tip';
 import { useProduct } from '@/hooks/use-product';
+import { useShop } from '@/hooks/use-shop';
+import { useMember } from '@/hooks/use-member';
 import { useIpfsContent } from '@/hooks/use-ipfs-content';
 import { useEntityMutation } from '@/hooks/use-entity-mutation';
 import { useShoppingBalance } from '@/hooks/use-loyalty';
@@ -42,6 +44,12 @@ function OrderCreateContent() {
   const { address } = useWalletStore();
   const { currentEntityId } = useEntityStore();
   const { data: product, isLoading } = useProduct(productId != null && !isNaN(productId) ? productId : null);
+  const { data: shop } = useShop(product?.shopId ?? null);
+  const shopEntityId = shop?.entityId ?? null;
+  const { data: memberInfo } = useMember(shopEntityId, address);
+  const isMembersOnly = product?.visibility === 'MembersOnly';
+  const isMember = !!memberInfo;
+  const memberBlocked = isMembersOnly && !isMember;
   const { data: productName } = useIpfsContent(product?.nameCid);
   const { data: shoppingBalanceRaw } = useShoppingBalance(currentEntityId, address);
   const { toNex, toUsdt } = useNexPrice();
@@ -83,7 +91,7 @@ function OrderCreateContent() {
   const totalUsdt = hasUsdtPrice ? product.usdtPrice * quantity : null;
 
   const handleSubmit = async () => {
-    if (!product || !address) return;
+    if (!product || !address || memberBlocked) return;
     if (referrer && !(await isValidSS58(referrer))) return;
     await mutate([
       product.id,                          // product_id
@@ -334,14 +342,25 @@ function OrderCreateContent() {
         </Card>
       )}
 
+      {memberBlocked && (
+        <Card className="border-destructive">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="h-5 w-5 text-destructive" />
+              <p className="text-sm text-destructive">{t('membersOnlyHint')}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Button
         className="w-full"
         size="lg"
         onClick={handleSubmit}
-        disabled={isBusy || !address || txState.status === 'finalized' || !!referrerError}
+        disabled={isBusy || !address || txState.status === 'finalized' || !!referrerError || memberBlocked}
       >
         {isBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-        {!address ? t('connectFirst') : isBusy ? t('processing') : t('confirmOrder')}
+        {!address ? t('connectFirst') : memberBlocked ? t('membersOnlyHint') : isBusy ? t('processing') : t('confirmOrder')}
       </Button>
     </div>
   );

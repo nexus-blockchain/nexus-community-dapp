@@ -1,12 +1,13 @@
 'use client';
 
-import { useEntityQuery } from './use-entity-query';
+import { useEntityQuery, hasRuntimeApi } from './use-entity-query';
 import { useEntityMutation } from './use-entity-mutation';
 import { STALE_TIMES } from '@/lib/chain/constants';
 import type {
   NexCommissionMemberStats,
   TokenCommissionMemberStats,
   WithdrawalConfig,
+  WithdrawalRecordView,
 } from '@/lib/types';
 
 // ======================== Queries ========================
@@ -89,11 +90,45 @@ export function useWithdrawalPaused(entityId: number | null) {
   );
 }
 
+// ======================== Queries (Runtime API) ========================
+
+export function useWithdrawalRecords(entityId: number | null, address: string | null) {
+  return useEntityQuery<WithdrawalRecordView[]>(
+    ['withdrawalRecords', entityId, address],
+    async (api) => {
+      if (entityId == null || !address) return [];
+      if (!hasRuntimeApi(api, 'commissionDashboardApi')) {
+        // Fallback: direct storage query
+        const raw = await (api.query as any).commissionCore.memberWithdrawalHistory(entityId, address);
+        const data: any[] = raw.toJSON() ?? [];
+        return data.map((r: any) => ({
+          totalAmount: String(r.totalAmount ?? r.total_amount ?? '0'),
+          withdrawn: String(r.withdrawn ?? '0'),
+          repurchased: String(r.repurchased ?? '0'),
+          bonus: String(r.bonus ?? '0'),
+          blockNumber: r.blockNumber ?? r.block_number ?? 0,
+        }));
+      }
+      const raw = await (api.call as any).commissionDashboardApi
+        .getMemberWithdrawalRecords(entityId, address);
+      const data: any[] = raw?.toJSON?.() ?? raw ?? [];
+      return data.map((r: any) => ({
+        totalAmount: String(r.totalAmount ?? r.total_amount ?? '0'),
+        withdrawn: String(r.withdrawn ?? '0'),
+        repurchased: String(r.repurchased ?? '0'),
+        bonus: String(r.bonus ?? '0'),
+        blockNumber: r.blockNumber ?? r.block_number ?? 0,
+      }));
+    },
+    { staleTime: STALE_TIMES.commission, enabled: entityId != null && !!address },
+  );
+}
+
 // ======================== Mutations ========================
 
 export function useWithdrawCommission() {
   return useEntityMutation('commissionCore', 'withdrawCommission', {
-    invalidateKeys: [['memberCommissionStats'], ['shoppingBalance']],
+    invalidateKeys: [['memberCommissionStats'], ['shoppingBalance'], ['nexBalance'], ['withdrawalRecords']],
   });
 }
 

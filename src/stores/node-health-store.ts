@@ -19,6 +19,7 @@ interface NodeHealthStore {
   activeEndpoint: string | null;
   preferredEndpoint: string | null;
 
+  _hydrate: () => void;
   initNodes: (seeds: string[], discovered?: string[]) => void;
   addNode: (endpoint: string, source: NodeSource) => void;
   removeNode: (endpoint: string) => void;
@@ -53,7 +54,9 @@ function makeNode(endpoint: string, source: NodeSource): NodeHealth {
 export const useNodeHealthStore = create<NodeHealthStore>((set, get) => ({
   nodes: [],
   activeEndpoint: null,
-  preferredEndpoint: loadPreferred(),
+  preferredEndpoint: null,
+
+  _hydrate: () => set({ preferredEndpoint: loadPreferred() }),
 
   initNodes: (seeds, discovered = []) => {
     const existing = get().nodes;

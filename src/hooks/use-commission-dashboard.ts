@@ -52,6 +52,8 @@ function parseCommissionDashboard(data: any): MemberCommissionDashboard {
         name: t.name ?? '',
         rate: t.rate ?? 0,
         totalEarned: String(t.totalEarned ?? t.total_earned ?? '0'),
+        nextThreshold: t.nextThreshold ?? t.next_threshold ?? null,
+        nextMinTeamSize: t.nextMinTeamSize ?? t.next_min_team_size ?? null,
       };
     })(),
     singleLine: {
@@ -135,6 +137,8 @@ export function useTeamPerformanceInfo(entityId: number | null, address: string 
           name: tier.name ?? '',
           rate: tier.rate ?? 0,
           totalEarned: String(tier.totalEarned ?? tier.total_earned ?? '0'),
+          nextThreshold: tier.nextThreshold ?? tier.next_threshold ?? null,
+          nextMinTeamSize: tier.nextMinTeamSize ?? tier.next_min_team_size ?? null,
         } : null,
         isEnabled: data.isEnabled ?? data.is_enabled ?? false,
         configExists: data.configExists ?? data.config_exists ?? false,

@@ -16,13 +16,14 @@ import {
   Ban, MoreHorizontal, Share2, Copy, Check, UserPlus, Loader2,
 } from 'lucide-react';
 import { useEntityStore, useWalletStore } from '@/stores';
+import { useEntity } from '@/hooks/use-entity';
 import { useMember, useDirectReferrals, useMemberCount, useRegisterMember, useBindReferrer } from '@/hooks/use-member';
 import {
   useReferralTree,
   useUplineChain,
   useReferralsByGeneration,
 } from '@/hooks/use-member-team';
-import { shortAddress, formatUsdt } from '@/lib/utils/chain-helpers';
+import { shortAddress, formatUsdt, isTxBusy } from '@/lib/utils/chain-helpers';
 import type { ReferralTreeNode, GenerationMemberInfo } from '@/lib/types';
 
 // ─────────────────────────────────────────────
@@ -159,6 +160,7 @@ function GenerationList({
 function InviteTab({ t }: { t: ReturnType<typeof useTranslations> }) {
   const { currentEntityId } = useEntityStore();
   const { address } = useWalletStore();
+  const { data: entity } = useEntity(currentEntityId);
   const { data: member } = useMember(currentEntityId, address);
   const { data: referrals } = useDirectReferrals(currentEntityId, address);
   const { data: memberCount } = useMemberCount(currentEntityId);
@@ -167,6 +169,8 @@ function InviteTab({ t }: { t: ReturnType<typeof useTranslations> }) {
 
   const registerMember = useRegisterMember();
   const bindReferrer = useBindReferrer();
+
+  const shopId = entity?.primaryShopId ?? null;
 
   const inviteLink = address
     ? `${typeof window !== 'undefined' ? window.location.origin : ''}/member/invite?ref=${address}&entity=${currentEntityId}`
@@ -180,17 +184,17 @@ function InviteTab({ t }: { t: ReturnType<typeof useTranslations> }) {
   };
 
   const handleRegister = async () => {
-    if (!currentEntityId) return;
+    if (!shopId) return;
     const ref = referrerInput || null;
-    await registerMember.mutate([currentEntityId, ref]);
+    await registerMember.mutate([shopId, ref]);
   };
 
   const handleBindReferrer = async () => {
-    if (!currentEntityId || !referrerInput) return;
-    await bindReferrer.mutate([currentEntityId, referrerInput]);
+    if (!shopId || !referrerInput) return;
+    await bindReferrer.mutate([shopId, referrerInput]);
   };
 
-  const isBusy = (m: any) => ['signing', 'broadcasting', 'inBlock'].includes(m.txState.status);
+  const isBusy = (m: any) => isTxBusy(m.txState);
 
   return (
     <div className="space-y-4">
@@ -208,7 +212,7 @@ function InviteTab({ t }: { t: ReturnType<typeof useTranslations> }) {
             />
             <Button
               className="w-full"
-              disabled={!currentEntityId || isBusy(registerMember)}
+              disabled={!shopId || isBusy(registerMember)}
               onClick={handleRegister}
             >
               {isBusy(registerMember) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}

@@ -3,7 +3,7 @@
 import { useEntityQuery } from './use-entity-query';
 import { useEntityMutation } from './use-entity-mutation';
 import { STALE_TIMES } from '@/lib/chain/constants';
-import { bytesToString, toJs, parseOption } from '@/lib/utils/chain-helpers';
+import { bytesToString } from '@/lib/utils/chain-helpers';
 import type { Shop } from '@/lib/types';
 
 /** Query single shop by ID */
@@ -19,8 +19,8 @@ export function useShop(shopId: number | null) {
         id: data.id,
         entityId: data.entityId ?? data.entity_id,
         name: bytesToString(data.name),
-        logoCid: data.logoCid ?? data.logo_cid ? bytesToString(data.logoCid ?? data.logo_cid) : null,
-        descriptionCid: data.descriptionCid ?? data.description_cid ? bytesToString(data.descriptionCid ?? data.description_cid) : null,
+        logoCid: (data.logoCid ?? data.logo_cid) ? bytesToString(data.logoCid ?? data.logo_cid) : null,
+        descriptionCid: (data.descriptionCid ?? data.description_cid) ? bytesToString(data.descriptionCid ?? data.description_cid) : null,
         shopType: data.shopType ?? data.shop_type ?? 'Physical',
         status: data.status ?? 'Active',
         managers: data.managers ?? [],
@@ -53,8 +53,8 @@ export function useEntityShops(entityId: number | null) {
           id: data.id,
           entityId: eid,
           name: bytesToString(data.name),
-          logoCid: data.logoCid ?? data.logo_cid ? bytesToString(data.logoCid ?? data.logo_cid) : null,
-          descriptionCid: data.descriptionCid ?? data.description_cid ? bytesToString(data.descriptionCid ?? data.description_cid) : null,
+          logoCid: (data.logoCid ?? data.logo_cid) ? bytesToString(data.logoCid ?? data.logo_cid) : null,
+          descriptionCid: (data.descriptionCid ?? data.description_cid) ? bytesToString(data.descriptionCid ?? data.description_cid) : null,
           shopType: data.shopType ?? data.shop_type ?? 'Physical',
           status: data.status ?? 'Active',
           managers: data.managers ?? [],

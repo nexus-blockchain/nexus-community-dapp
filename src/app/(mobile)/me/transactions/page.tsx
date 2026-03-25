@@ -19,19 +19,11 @@ import { useBuyerOrders } from '@/hooks/use-order';
 import { useEntityTradeHistory } from '@/hooks/use-market';
 import { useNexUserTrades } from '@/hooks/use-nex-global-market';
 import { formatBalance, shortAddress } from '@/lib/utils/chain-helpers';
+import { ORDER_STATUS_VARIANT } from '@/lib/constants/order-status';
 import type { Order, TradeRecord, NexMarketTrade } from '@/lib/types';
 import type { TransferRecord } from '@/stores/transfer-history-store';
 
 type TabKey = 'orders' | 'market' | 'nex' | 'transfers';
-
-const ORDER_STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'success' | 'warning' | 'destructive'> = {
-  Paid: 'default',
-  Shipped: 'warning',
-  Completed: 'success',
-  Disputed: 'destructive',
-  Refunded: 'secondary',
-  Cancelled: 'secondary',
-};
 
 function OrderItem({ order }: { order: Order }) {
   const t = useTranslations('txHistory');
@@ -206,6 +198,7 @@ export default function TransactionsPage() {
   const { data: orders, isLoading: ordersLoading } = useBuyerOrders(address);
   const { data: marketTrades, isLoading: marketLoading } = useEntityTradeHistory(currentEntityId);
   const { data: nexTrades, isLoading: nexLoading } = useNexUserTrades(address);
+  const transferVersion = useTransferHistoryStore((s) => s._version);
   const transferRecords = useTransferHistoryStore.getState().getRecords(address ?? '');
 
   const tabs: { key: TabKey; label: string; count?: number }[] = [

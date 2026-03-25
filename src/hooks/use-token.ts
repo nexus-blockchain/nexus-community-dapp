@@ -3,6 +3,7 @@
 import { useEntityQuery } from './use-entity-query';
 import { useEntityMutation } from './use-entity-mutation';
 import { STALE_TIMES } from '@/lib/chain/constants';
+import { bytesToString } from '@/lib/utils/chain-helpers';
 import type { EntityTokenConfig, EntityTokenMetadata } from '@/lib/types';
 
 // ======================== Queries ========================
@@ -45,14 +46,14 @@ export function useTokenMetadata(entityId: number | null) {
       const json = data.toJSON();
       if (Array.isArray(json)) {
         return {
-          name: decodeHexOrString(json[0]),
-          symbol: decodeHexOrString(json[1]),
+          name: bytesToString(json[0]),
+          symbol: bytesToString(json[1]),
           decimals: json[2] ?? 0,
         };
       }
       return {
-        name: decodeHexOrString(json?.name ?? ''),
-        symbol: decodeHexOrString(json?.symbol ?? ''),
+        name: bytesToString(json?.name ?? ''),
+        symbol: bytesToString(json?.symbol ?? ''),
         decimals: json?.decimals ?? 0,
       };
     },
@@ -67,7 +68,7 @@ export function useTokenBalance(entityId: number | null, address: string | null)
       if (entityId == null || !address) return '0';
       const offset = (api.consts as any).entityToken?.shopTokenOffset;
       if (!offset) return '0';
-      const assetId = offset.toNumber() + entityId;
+      const assetId = Number(offset.toBigInt()) + entityId;
       const raw = await (api.query as any).assets.account(assetId, address);
       if (raw.isNone) return '0';
       const data = raw.unwrap().toJSON();
@@ -114,23 +115,4 @@ export function useBurnTokens() {
   return useEntityMutation('entityToken', 'burnTokens', {
     invalidateKeys: [['tokenBalance']],
   });
-}
-
-// ======================== Helpers ========================
-
-/** Decode a hex-encoded string (0x...) or return as-is */
-function decodeHexOrString(val: unknown): string {
-  if (typeof val !== 'string') return '';
-  if (val.startsWith('0x')) {
-    try {
-      const bytes = [];
-      for (let i = 2; i < val.length; i += 2) {
-        bytes.push(parseInt(val.substring(i, i + 2), 16));
-      }
-      return new TextDecoder().decode(new Uint8Array(bytes));
-    } catch {
-      return val;
-    }
-  }
-  return val;
 }

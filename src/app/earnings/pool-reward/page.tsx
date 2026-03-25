@@ -22,7 +22,7 @@ import {
 } from '@/hooks/use-commission';
 import { useLevelSystem } from '@/hooks/use-member';
 import { useCurrentBlock } from '@/hooks/use-current-block';
-import { formatBalance, bpsToPercent } from '@/lib/utils/chain-helpers';
+import { formatBalance, bpsToPercent, isTxBusy } from '@/lib/utils/chain-helpers';
 import type { LevelSnapshot, CompletedRoundSummary, PoolFundingRecord, LevelProgressInfo } from '@/lib/types';
 
 export default function PoolRewardPage() {
@@ -58,7 +58,7 @@ export default function PoolRewardPage() {
   const canClaim = memberView
     ? (!memberView.alreadyClaimed && !memberView.isPaused && memberView.currentRoundId > 0 && BigInt(claimableNex) > BigInt(0))
     : (round && lastClaimed != null && round.roundId > lastClaimed && !paused);
-  const isBusy = ['signing', 'broadcasting', 'inBlock'].includes(claim.txState.status);
+  const isBusy = isTxBusy(claim.txState);
 
   // Calculate end block and remaining
   const endBlock = round && config ? round.startBlock + config.roundDuration : 0;

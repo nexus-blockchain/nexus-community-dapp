@@ -20,8 +20,8 @@ function parseOrder(data: any): Order {
     totalAmount: String(data.totalAmount ?? data.total_amount ?? '0'),
     platformFee: String(data.platformFee ?? data.platform_fee ?? '0'),
     productCategory: data.productCategory ?? data.product_category ?? 'Physical',
-    shippingCid: data.shippingCid ?? data.shipping_cid ? bytesToString(data.shippingCid ?? data.shipping_cid) : null,
-    trackingCid: data.trackingCid ?? data.tracking_cid ? bytesToString(data.trackingCid ?? data.tracking_cid) : null,
+    shippingCid: (data.shippingCid ?? data.shipping_cid) ? bytesToString(data.shippingCid ?? data.shipping_cid) : null,
+    trackingCid: (data.trackingCid ?? data.tracking_cid) ? bytesToString(data.trackingCid ?? data.tracking_cid) : null,
     status: data.status ?? 'Paid',
     createdAt: data.createdAt ?? data.created_at ?? 0,
     shippedAt: data.shippedAt ?? data.shipped_at ?? null,
@@ -31,8 +31,8 @@ function parseOrder(data: any): Order {
     confirmExtended: data.confirmExtended ?? data.confirm_extended ?? false,
     disputeRejected: data.disputeRejected ?? data.dispute_rejected ?? false,
     disputeDeadline: data.disputeDeadline ?? data.dispute_deadline ?? null,
-    noteCid: data.noteCid ?? data.note_cid ? bytesToString(data.noteCid ?? data.note_cid) : null,
-    refundReasonCid: data.refundReasonCid ?? data.refund_reason_cid ? bytesToString(data.refundReasonCid ?? data.refund_reason_cid) : null,
+    noteCid: (data.noteCid ?? data.note_cid) ? bytesToString(data.noteCid ?? data.note_cid) : null,
+    refundReasonCid: (data.refundReasonCid ?? data.refund_reason_cid) ? bytesToString(data.refundReasonCid ?? data.refund_reason_cid) : null,
   };
 }
 

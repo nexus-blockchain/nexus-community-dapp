@@ -1,4 +1,8 @@
 import type { ApiPromise } from '@polkadot/api';
+import { stringToU8a } from '@polkadot/util';
+
+/** Substrate PalletId account derivation prefix: b"modl" */
+export const MODL_PREFIX = stringToU8a('modl');
 
 /** Convert chain balance (BN or Codec) to display string with fixed decimals */
 export function formatBalance(raw: string | bigint, decimals = 12, displayDecimals = 0): string {
@@ -114,6 +118,7 @@ export function ipfsUrl(cid: string | null): string | null {
 
 /** Convert NEX amount string to chain-compatible bigint (12 decimals) */
 export function nexToRaw(amount: string): bigint {
+  if (amount.startsWith('-')) throw new Error('Amount must not be negative');
   const parts = amount.split('.');
   const whole = BigInt(parts[0] || '0') * BigInt(10 ** 12);
   if (parts[1]) {
@@ -175,4 +180,19 @@ export async function queryStorageMap<T>(
 ): Promise<T[]> {
   const entries = await (api.query as any)[palletName][storageName].entries();
   return entries.map(([key, value]: [any, any]) => transform(key, value));
+}
+
+/** Check if a transaction is currently in-flight */
+export function isTxBusy(txState: { status: string }): boolean {
+  return ['signing', 'broadcasting', 'inBlock'].includes(txState.status);
+}
+
+/** Parse chain enum — may be a string "OnSale" or an object { onSale: null } */
+export function parseChainEnum(raw: unknown, fallback: string): string {
+  if (typeof raw === 'string') return raw;
+  if (raw && typeof raw === 'object') {
+    const key = Object.keys(raw)[0];
+    if (key) return key.charAt(0).toUpperCase() + key.slice(1);
+  }
+  return fallback;
 }

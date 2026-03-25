@@ -35,9 +35,6 @@ function clearWalletSession() {
   localStorage.removeItem(WALLET_SESSION_KEY);
 }
 
-// Restore session on load
-const restored = loadWalletSession();
-
 interface WalletState {
   address: string | null;
   name: string | null;
@@ -49,6 +46,10 @@ interface WalletState {
   lockedAt: number | null;
   autoLockMinutes: number;
 
+  // Hydration
+  _hydrated: boolean;
+  _hydrate: () => void;
+
   // Actions
   setWallet: (address: string, name: string, source: string) => void;
   disconnect: () => void;
@@ -58,13 +59,27 @@ interface WalletState {
 }
 
 export const useWalletStore = create<WalletState>((set) => ({
-  address: restored?.address ?? null,
-  name: restored?.name ?? null,
-  source: restored?.source ?? null,
-  isConnected: !!restored,
+  address: null,
+  name: null,
+  source: null,
+  isConnected: false,
   isLocked: false,
   lockedAt: null,
-  autoLockMinutes: getStoredAutoLockMinutes(),
+  autoLockMinutes: 5,
+
+  _hydrated: false,
+  _hydrate: () => {
+    const restored = loadWalletSession();
+    set({
+      address: restored?.address ?? null,
+      name: restored?.name ?? null,
+      source: restored?.source ?? null,
+      isConnected: !!restored,
+      isLocked: restored?.source === 'local',
+      autoLockMinutes: getStoredAutoLockMinutes(),
+      _hydrated: true,
+    });
+  },
 
   setWallet: (address, name, source) => {
     saveWalletSession(address, name, source);

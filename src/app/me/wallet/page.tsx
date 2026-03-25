@@ -274,7 +274,7 @@ function ImportWalletDialog({
   const [importing, setImporting] = useState(false);
 
   const resetState = () => { setMnemonic(''); setWalletName(''); setPassword(''); setConfirmPwd(''); setError(''); setImporting(false); };
-  const handleOpenChange = (v: boolean) => { if (!v) resetState(); onOpenChange(v); };
+  const handleOpenChange = (v: boolean) => { if (!v && importing) return; if (!v) resetState(); onOpenChange(v); };
 
   const handleImport = async () => {
     if (!mnemonic.trim()) { setError(t('enterMnemonic')); return; }
@@ -285,6 +285,8 @@ function ImportWalletDialog({
     if (!pwdCheck.valid) { setError(t(pwdCheck.errorKey!)); return; }
     if (password !== confirmPwd) { setError(t('passwordMismatch')); return; }
     setError(''); setImporting(true);
+    // Yield to the event loop so the spinner renders before heavy crypto work
+    await new Promise((r) => setTimeout(r, 50));
     try {
       const result = await importWallet(mnemonic.trim(), walletName.trim(), password);
       onImported(result.address); handleOpenChange(false);
@@ -292,7 +294,7 @@ function ImportWalletDialog({
       if (e instanceof Error && e.message === 'DUPLICATE_ACCOUNT') {
         setError(t('duplicateAccount'));
       } else {
-        setError(e instanceof Error ? e.message : t('importFailed'));
+        setError(t('importFailed'));
       }
     } finally { setImporting(false); }
   };
@@ -304,11 +306,18 @@ function ImportWalletDialog({
           <DialogTitle>{t('importWallet')}</DialogTitle>
           <DialogDescription>{t('importDesc')}</DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
+        <div className="space-y-4 relative">
+          {importing && (
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 rounded-lg bg-background/80 backdrop-blur-sm">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="text-sm text-muted-foreground">{t('importingWalletHint')}</p>
+            </div>
+          )}
           <div>
             <label className="text-sm font-medium">{t('mnemonic')}</label>
             <textarea className="mt-1 flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 min-h-[80px] resize-none"
-              placeholder={t('mnemonicPlaceholder')} value={mnemonic} onChange={(e) => setMnemonic(e.target.value)} />
+              placeholder={t('mnemonicPlaceholder')} value={mnemonic} onChange={(e) => setMnemonic(e.target.value)}
+              autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} />
           </div>
           <div>
             <label className="text-sm font-medium">{t('walletName')}</label>
@@ -327,7 +336,9 @@ function ImportWalletDialog({
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
           <Button className="w-full" onClick={handleImport} disabled={importing}>
-            {importing ? t('importing') : t('importBtn')}
+            {importing ? (
+              <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('importing')}</>
+            ) : t('importBtn')}
           </Button>
         </div>
       </DialogContent>

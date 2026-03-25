@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Store, Package, Star } from 'lucide-react';
 import { ProductImage } from '@/components/ui/product-image';
+import { ProductCard } from '@/components/ui/product-card';
 import { useEntityShops } from '@/hooks/use-shop';
 import { useAllShopsProducts } from '@/hooks/use-product';
 import { useIpfsContents } from '@/hooks/use-ipfs-content';
@@ -130,61 +131,24 @@ export default function MallPage() {
                     </Card>
                   ) : (
                     <div className="grid grid-cols-2 gap-3">
-                      {productsByShop[shop.id]!.map((product) => {
-                        const dynNex = toNex(product.usdtPrice);
-                        return (
-                          <Link key={product.id} href={`/product/${product.id}`}>
-                            <Card className="h-full transition-colors hover:border-primary/50">
-                              <CardContent className="p-3">
-                                <div className="relative flex h-24 items-center justify-center overflow-hidden rounded-lg bg-primary/10">
-                                  <ProductImage cid={product.imagesCid} />
-                                  {product.status !== 'OnSale' && (
-                                    <Badge
-                                      variant={product.status === 'Draft' ? 'outline' : 'secondary'}
-                                      className="absolute right-1 top-1 text-[10px]"
-                                    >
-                                      {product.status === 'Draft' && tProduct('draft')}
-                                      {product.status === 'SoldOut' && tProduct('soldOut')}
-                                      {product.status === 'OffShelf' && tProduct('offShelf')}
-                                    </Badge>
-                                  )}
-                                </div>
-                                <div className="mt-2">
-                                  {product.nameCid && (
-                                    <p className="truncate text-sm font-medium">
-                                      {nameMap.get(product.nameCid) || t('loading')}
-                                    </p>
-                                  )}
-                                  {product.usdtPrice > 0 && (
-                                    <p className="text-sm font-semibold text-primary">
-                                      ${formatUsdt(product.usdtPrice)} USDT
-                                    </p>
-                                  )}
-                                  {dynNex ? (
-                                    <p className="text-xs text-muted-foreground">
-                                      ≈ {formatBalance(dynNex)} NEX
-                                    </p>
-                                  ) : product.usdtPrice <= 0 ? (
-                                    <p className="text-sm font-semibold text-primary">
-                                      {formatBalance(product.price, 12, 0)} NEX
-                                    </p>
-                                  ) : null}
-                                  <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-                                    <span>
-                                      {product.stock === 0
-                                        ? tShop('stockUnlimited')
-                                        : tShop('stock', { count: product.stock - product.soldCount })}
-                                    </span>
-                                    {product.soldCount > 0 && (
-                                      <span>{tShop('sold', { count: product.soldCount })}</span>
-                                    )}
-                                  </div>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          </Link>
-                        );
-                      })}
+                      {productsByShop[shop.id]!.map((product) => (
+                        <ProductCard
+                          key={product.id}
+                          product={product}
+                          name={nameMap.get(product.nameCid)}
+                          loadingText={t('loading')}
+                          dynNex={toNex(product.usdtPrice)}
+                          showStatusBadge
+                          statusLabels={{
+                            Draft: tProduct('draft'),
+                            SoldOut: tProduct('soldOut'),
+                            OffShelf: tProduct('offShelf'),
+                          }}
+                          stockUnlimitedText={tShop('stockUnlimited')}
+                          stockText={(n) => tShop('stock', { count: n })}
+                          soldText={(n) => tShop('sold', { count: n })}
+                        />
+                      ))}
                     </div>
                   )}
                 </div>

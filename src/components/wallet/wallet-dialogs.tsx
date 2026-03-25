@@ -8,12 +8,12 @@ import { Input } from '@/components/ui/input';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog';
-import { Copy, Check, Send, QrCode, ShieldAlert } from 'lucide-react';
+import { Copy, Check, Send, QrCode, ShieldAlert, Loader2 } from 'lucide-react';
 import { cryptoWaitReady, decodeAddress, encodeAddress } from '@polkadot/util-crypto';
 import { useWalletStore } from '@/stores';
 import { useTransfer } from '@/hooks/use-transfer';
 import { useNexBalance } from '@/hooks/use-nex-balance';
-import { formatBalance, shortAddress } from '@/lib/utils/chain-helpers';
+import { formatBalance, shortAddress, isTxBusy } from '@/lib/utils/chain-helpers';
 import { validateAmount } from '@/lib/utils/amount';
 
 async function isValidSS58(address: string): Promise<boolean> {
@@ -82,7 +82,7 @@ export function TransferDialog({ open, onOpenChange }: { open: boolean; onOpenCh
     try { await transfer(recipient.trim(), rawAmount, isLocal ? password : undefined); } catch {}
   };
 
-  const isProcessing = ['signing', 'broadcasting', 'inBlock'].includes(txState.status);
+  const isProcessing = isTxBusy(txState);
   const isSuccess = txState.status === 'finalized';
 
   return (
@@ -134,8 +134,18 @@ export function TransferDialog({ open, onOpenChange }: { open: boolean; onOpenCh
               </div>
             )}
             {(error || txState.error) && <p className="text-sm text-destructive">{error || txState.error}</p>}
+            {isProcessing && (
+              <div className="flex flex-col items-center gap-2 py-2">
+                <Loader2 className="h-6 w-6 text-primary animate-spin" />
+                <p className="text-sm text-muted-foreground">
+                  {txState.status === 'signing' && tTx('signingPleaseWait')}
+                  {txState.status === 'broadcasting' && tTx('broadcasting')}
+                  {txState.status === 'inBlock' && tTx('inBlockWaiting')}
+                </p>
+              </div>
+            )}
             <Button className="w-full" onClick={handleTransfer} disabled={isProcessing}>
-              {txState.status === 'signing' && tTx('signing')}
+              {txState.status === 'signing' && tTx('signingInProgress')}
               {txState.status === 'broadcasting' && tTx('broadcasting')}
               {txState.status === 'inBlock' && tTx('inBlock')}
               {!isProcessing && t('confirmTransfer')}

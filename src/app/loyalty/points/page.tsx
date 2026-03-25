@@ -13,7 +13,7 @@ import { Gift, ArrowRightLeft, Coins, Loader2, Check, AlertCircle } from 'lucide
 import { HelpTip } from '@/components/ui/help-tip';
 import { useEntityStore, useWalletStore } from '@/stores';
 import { usePointsConfig, usePointsBalance, useShoppingBalance, useTokenShoppingBalance, useTransferPoints, useRedeemPoints } from '@/hooks/use-loyalty';
-import { formatBalance, bpsToPercent } from '@/lib/utils/chain-helpers';
+import { formatBalance, bpsToPercent, isTxBusy, nexToRaw } from '@/lib/utils/chain-helpers';
 
 export default function LoyaltyPointsPage() {
   const t = useTranslations('loyalty');
@@ -36,11 +36,11 @@ export default function LoyaltyPointsPage() {
   const transferPoints = useTransferPoints();
   const redeemPoints = useRedeemPoints();
 
-  const isBusy = (m: any) => ['signing', 'broadcasting', 'inBlock'].includes(m.txState.status);
+  const isBusy = (m: any) => isTxBusy(m.txState);
 
   const handleTransfer = async () => {
     if (!transferTo || !transferAmount) return;
-    const raw = Math.round(parseFloat(transferAmount) * 1e12);
+    const raw = nexToRaw(transferAmount);
     await transferPoints.mutate([shopId, transferTo, raw]);
     setTransferTo('');
     setTransferAmount('');
@@ -48,7 +48,7 @@ export default function LoyaltyPointsPage() {
 
   const handleRedeem = async () => {
     if (!redeemAmount) return;
-    const raw = Math.round(parseFloat(redeemAmount) * 1e12);
+    const raw = nexToRaw(redeemAmount);
     await redeemPoints.mutate([shopId, raw]);
     setRedeemAmount('');
   };

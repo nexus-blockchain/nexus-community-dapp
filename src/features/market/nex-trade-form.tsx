@@ -15,11 +15,11 @@ import {
   useNexConfirmPayment, useNexSellerConfirmReceived,
   useNexOrderBook,
 } from '@/hooks/use-nex-global-market';
-import { nexToRaw, usdtToRaw, formatNexPrice } from '@/lib/utils/chain-helpers';
+import { nexToRaw, usdtToRaw, formatNexPrice, isTxBusy } from '@/lib/utils/chain-helpers';
 import type { NexMarketOrder } from '@/lib/types';
 
 function isBusy(m: { txState: { status: string } }): boolean {
-  return ['signing', 'broadcasting', 'inBlock'].includes(m.txState.status);
+  return isTxBusy(m.txState);
 }
 
 function TxStatus({ mutation }: { mutation: { txState: { status: string; error: string | null } } }) {

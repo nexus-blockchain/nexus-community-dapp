@@ -3,6 +3,7 @@
 import { useEntityQuery } from './use-entity-query';
 import { useEntityMutation } from './use-entity-mutation';
 import { STALE_TIMES } from '@/lib/chain/constants';
+import { bytesToString } from '@/lib/utils/chain-helpers';
 import type { MallReview, ReviewReply } from '@/lib/types';
 
 // ======================== Queries ========================
@@ -39,7 +40,7 @@ export function useReviewReply(orderId: number | null) {
       const data = raw.unwrap().toJSON();
       return {
         replier: data.replier ?? '',
-        contentCid: decodeHexOrString(data.contentCid ?? data.content_cid ?? ''),
+        contentCid: bytesToString(data.contentCid ?? data.content_cid ?? ''),
         createdAt: data.createdAt ?? data.created_at ?? 0,
       };
     },
@@ -123,24 +124,8 @@ export function useReplyToReview() {
 
 // ======================== Helpers ========================
 
-function decodeHexOrString(val: unknown): string {
-  if (typeof val !== 'string') return '';
-  if (val.startsWith('0x')) {
-    try {
-      const bytes = [];
-      for (let i = 2; i < val.length; i += 2) {
-        bytes.push(parseInt(val.substring(i, i + 2), 16));
-      }
-      return new TextDecoder().decode(new Uint8Array(bytes));
-    } catch {
-      return val;
-    }
-  }
-  return val;
-}
-
 function decodeOptionalCid(val: unknown): string | null {
   if (val == null) return null;
-  const decoded = decodeHexOrString(val);
+  const decoded = bytesToString(val);
   return decoded || null;
 }

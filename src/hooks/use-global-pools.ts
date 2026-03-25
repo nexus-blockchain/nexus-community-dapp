@@ -2,6 +2,7 @@
 
 import { useEntityQuery } from './use-entity-query';
 import { STALE_TIMES } from '@/lib/chain/constants';
+import { MODL_PREFIX } from '@/lib/utils/chain-helpers';
 import { encodeAddress } from '@polkadot/util-crypto';
 import { u8aConcat, stringToU8a } from '@polkadot/util';
 
@@ -10,14 +11,12 @@ import { u8aConcat, stringToU8a } from '@polkadot/util';
 // Substrate formula: b"modl" ++ pallet_id(8) → zero-pad to 32 bytes
 // ─────────────────────────────────────────────
 
-const MODL_PREFIX = stringToU8a('modl');
-
 function derivePalletAccount(palletId: string): string {
   const palletBytes = stringToU8a(palletId);
   const raw = u8aConcat(MODL_PREFIX, palletBytes);
   const accountBytes = new Uint8Array(32);
   accountBytes.set(raw.subarray(0, Math.min(raw.length, 32)));
-  return encodeAddress(accountBytes, 42);
+  return encodeAddress(accountBytes, 273);
 }
 
 // ─────────────────────────────────────────────
