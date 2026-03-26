@@ -882,7 +882,17 @@
     "nodeCount": "{healthy}/{total} 节点健康",
     "latencyMs": "{ms}ms",
     "blockHeight": "区块 #{height}",
-    "noNodes": "暂无可用节点"
+    "noNodes": "暂无可用节点",
+    "addNode": "添加节点",
+    "addNodeDesc": "输入 WebSocket 节点地址",
+    "addNodePlaceholder": "ws://127.0.0.1:9944 或 wss://...",
+    "addNodeBtn": "连接",
+    "addingNode": "连接中...",
+    "addNodeSuccess": "节点添加成功",
+    "addNodeFailed": "无法连接到该节点，请检查地址是否正确",
+    "invalidNodeUrl": "请输入有效的 ws:// 或 wss:// 地址",
+    "removeNode": "移除",
+    "removeNodeConfirm": "确定要移除此节点吗？"
   },
   "chainInfo": {
     "title": "链上详情",

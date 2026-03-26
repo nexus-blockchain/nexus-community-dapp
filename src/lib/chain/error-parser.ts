@@ -29,6 +29,7 @@ const ERROR_MESSAGES: Record<string, Record<string, string>> = {
   entityTransaction: {
     OrderNotFound: '订单不存在',
     InvalidOrderStatus: '订单状态无效',
+    InvalidAmount: '支付金额无效',
     PaymentFailed: '支付失败',
     OrderExpired: '订单已过期',
     ProductMembersOnly: '该商品仅限会员购买，请先注册成为会员',
@@ -94,6 +95,13 @@ const ERROR_MESSAGES: Record<string, Record<string, string>> = {
     InsufficientPoints: '积分不足',
     TransferDisabled: '积分转移已禁用',
     RedeemDisabled: '积分兑换已禁用',
+  },
+  escrow: {
+    Insufficient: '托管转账余额不足',
+    NoLock: '托管记录不存在',
+    DisputeActive: '托管处于争议状态',
+    AlreadyClosed: '托管已关闭',
+    GloballyPaused: '托管系统已暂停',
   },
 };
 

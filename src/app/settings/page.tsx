@@ -15,7 +15,8 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
-import { Globe, Building2, CheckCircle2, Loader2, ChevronRight, Radio, Zap } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Globe, Building2, CheckCircle2, Loader2, ChevronRight, Radio, Zap, Plus, X } from 'lucide-react';
 import { useLocaleStore } from '@/stores/locale-store';
 import { useWalletStore, useEntityStore } from '@/stores';
 import { useAllEntities } from '@/hooks/use-entity';
@@ -49,14 +50,19 @@ export default function SettingsPage() {
   const { data: myMemberships } = useMyMemberships(entityIds, address);
   const registerMember = useRegisterMember();
 
-  const { activeEndpoint, switchNode } = useApi();
+  const { activeEndpoint, switchNode, addManualNode } = useApi();
   const nodes = useNodeHealthStore((s) => s.nodes);
   const preferredEndpoint = useNodeHealthStore((s) => s.preferredEndpoint);
   const setPreferredEndpoint = useNodeHealthStore((s) => s.setPreferredEndpoint);
+  const removeNode = useNodeHealthStore((s) => s.removeNode);
   const healthyCount = nodes.filter((n) => n.status === 'healthy').length;
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [joiningEntityId, setJoiningEntityId] = useState<number | null>(null);
+  const [nodeInput, setNodeInput] = useState('');
+  const [addingNode, setAddingNode] = useState(false);
+  const [nodeError, setNodeError] = useState<string | null>(null);
+  const [nodeSuccess, setNodeSuccess] = useState(false);
 
   const isBusy = isTxBusy(registerMember.txState);
 
@@ -80,6 +86,50 @@ export default function SettingsPage() {
   const handleSelectEntity = (entityId: number, name: string) => {
     setEntity(entityId, name);
     setDialogOpen(false);
+  };
+
+  const handleAddNode = async () => {
+    // Normalize: replace common full-width / Chinese punctuation
+    const url = nodeInput.trim()
+      .replace(/：/g, ':')
+      .replace(/／/g, '/');
+    if (!url) return;
+
+    // Validate ws:// or wss:// URL
+    if (!/^wss?:\/\/.+/.test(url)) {
+      setNodeError(t('invalidNodeUrl'));
+      return;
+    }
+
+    // Check if already exists
+    if (nodes.some((n) => n.endpoint === url)) {
+      setNodeInput('');
+      return;
+    }
+
+    setAddingNode(true);
+    setNodeError(null);
+    setNodeSuccess(false);
+
+    const ok = await addManualNode(url);
+    setAddingNode(false);
+
+    if (ok) {
+      setNodeInput('');
+      setNodeSuccess(true);
+      setTimeout(() => setNodeSuccess(false), 2000);
+    } else {
+      setNodeError(t('addNodeFailed'));
+    }
+  };
+
+  const handleRemoveNode = (endpoint: string) => {
+    if (!confirm(t('removeNodeConfirm'))) return;
+    removeNode(endpoint);
+    // If removing the active preferred node, reset to auto
+    if (endpoint === preferredEndpoint) {
+      setPreferredEndpoint(null);
+    }
   };
 
   return (
@@ -189,6 +239,45 @@ export default function SettingsPage() {
                 </div>
               )}
 
+              {/* Add node form */}
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">{t('addNode')}</p>
+                <div className="flex gap-2">
+                  <Input
+                    value={nodeInput}
+                    onChange={(e) => {
+                      setNodeInput(e.target.value);
+                      setNodeError(null);
+                    }}
+                    placeholder={t('addNodePlaceholder')}
+                    className="h-8 font-mono text-xs"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !addingNode) handleAddNode();
+                    }}
+                    disabled={addingNode}
+                  />
+                  <Button
+                    size="sm"
+                    className="h-8 shrink-0"
+                    onClick={handleAddNode}
+                    disabled={addingNode || !nodeInput.trim()}
+                  >
+                    {addingNode ? (
+                      <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                    ) : (
+                      <Plus className="mr-1 h-3 w-3" />
+                    )}
+                    {addingNode ? t('addingNode') : t('addNodeBtn')}
+                  </Button>
+                </div>
+                {nodeError && (
+                  <p className="text-xs text-destructive">{nodeError}</p>
+                )}
+                {nodeSuccess && (
+                  <p className="text-xs text-success">{t('addNodeSuccess')}</p>
+                )}
+              </div>
+
               {/* Node list */}
               {nodes.length === 0 ? (
                 <p className="py-4 text-center text-sm text-muted-foreground">{t('noNodes')}</p>
@@ -207,21 +296,24 @@ export default function SettingsPage() {
                     })
                     .map((node) => {
                       const isActive = node.endpoint === activeEndpoint;
+                      const canRemove = node.source !== 'seed' && !isActive;
                       return (
-                        <button
+                        <div
                           key={node.endpoint}
-                          className={`flex w-full items-center gap-2 rounded-lg border p-2.5 text-left transition-colors ${
+                          className={`flex w-full items-center gap-2 rounded-lg border p-2.5 transition-colors ${
                             isActive
                               ? 'border-primary/50 bg-primary/5'
                               : 'border-border hover:border-primary/30 hover:bg-secondary'
                           }`}
-                          onClick={() => {
-                            if (!isActive) {
-                              switchNode(node.endpoint);
-                            }
-                          }}
                         >
-                          <div className="min-w-0 flex-1">
+                          <button
+                            className="min-w-0 flex-1 text-left"
+                            onClick={() => {
+                              if (!isActive) {
+                                switchNode(node.endpoint);
+                              }
+                            }}
+                          >
                             <div className="flex items-center gap-1.5">
                               <span className="min-w-0 flex-1 truncate font-mono text-[11px]">
                                 {node.endpoint}
@@ -246,8 +338,20 @@ export default function SettingsPage() {
                                 <CheckCircle2 className="h-3 w-3 text-primary" />
                               )}
                             </div>
-                          </div>
-                        </button>
+                          </button>
+                          {canRemove && (
+                            <button
+                              className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRemoveNode(node.endpoint);
+                              }}
+                              title={t('removeNode')}
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
                       );
                     })}
                 </div>

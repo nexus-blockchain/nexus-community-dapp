@@ -90,6 +90,26 @@ function OrderCreateContent() {
   }, [unitNexDynamic, product, quantity]);
   const totalUsdt = hasUsdtPrice ? product.usdtPrice * quantity : null;
 
+  // Shopping balance to spend: capped at min(balance, totalNex - MIN_NATIVE).
+  // Chain constraints for Digital products (auto-complete on creation):
+  //  1. ensure!(!final_amount.is_zero()) — remaining must be > 0
+  //  2. Escrow::lock_from needs final_amount >= ED for new escrow entry
+  //  3. Escrow::transfer_from_escrow(seller_amount, KeepAlive) needs
+  //     remaining platform_fee >= ED after seller transfer.
+  //     platform_fee = final_amount * feeRate / 10000, so:
+  //     final_amount >= ED * 10000 / feeRate  (ED=10^9, feeRate=100bps → 0.1 NEX)
+  // We use a conservative constant that satisfies all three constraints.
+  const MIN_NATIVE_RESERVE = BigInt('100000000000'); // 0.1 NEX — covers ED * 100 (1% fee)
+  const shoppingBalSpend = useMemo(() => {
+    if (!useShoppingBal || !shoppingBalanceRaw) return null;
+    const bal = BigInt(shoppingBalanceRaw);
+    if (bal <= BigInt(0) || totalNex <= MIN_NATIVE_RESERVE) return null;
+    const maxDeduct = totalNex - MIN_NATIVE_RESERVE;
+    const cap = maxDeduct < bal ? maxDeduct : bal;
+    if (cap <= BigInt(0)) return null;
+    return cap.toString();
+  }, [useShoppingBal, shoppingBalanceRaw, totalNex]);
+
   const handleSubmit = async () => {
     if (!product || !address || memberBlocked) return;
     if (referrer && !(await isValidSS58(referrer))) return;
@@ -99,8 +119,7 @@ function OrderCreateContent() {
       shippingAddr || null,                // shipping_cid
       paymentAsset === 'EntityToken'       // use_tokens: Option<Balance>
         ? totalNex.toString() : null,
-      useShoppingBal                       // use_shopping_balance: Option<Balance>
-        ? (shoppingBalanceRaw ?? '0') : null,
+      shoppingBalSpend,                    // use_shopping_balance: Option<Balance>
       null,                                // payment_asset
       note || null,                        // note_cid
       referrer || null,                    // referrer

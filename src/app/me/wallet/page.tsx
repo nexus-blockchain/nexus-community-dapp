@@ -291,6 +291,7 @@ function ImportWalletDialog({
       const result = await importWallet(mnemonic.trim(), walletName.trim(), password);
       onImported(result.address); handleOpenChange(false);
     } catch (e) {
+      console.error('[wallet-import] failed:', e);
       if (e instanceof Error && e.message === 'DUPLICATE_ACCOUNT') {
         setError(t('duplicateAccount'));
       } else {

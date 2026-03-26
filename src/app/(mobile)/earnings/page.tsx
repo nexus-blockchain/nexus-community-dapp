@@ -106,8 +106,8 @@ export default function EarningsPage() {
     withdraw.mutate([
       currentEntityId,
       pending,
-      recipient || null,
       null,
+      recipient || null,
     ]);
   };
 

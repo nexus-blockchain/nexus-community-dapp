@@ -1,8 +1,8 @@
-/** Hardcoded seed nodes — local development only.
- * Production deployments MUST set NEXT_PUBLIC_WS_ENDPOINTS env var
- * with wss:// endpoints. This localhost fallback will NOT work in production. */
+/** Default seed nodes.
+ * Production deployments can override via NEXT_PUBLIC_WS_ENDPOINTS env var. */
 export const SEED_NODES: string[] = [
   'ws://127.0.0.1:9944',
+  'ws://202.140.140.202:9944',
 ];
 
 /** Node health probe configuration */

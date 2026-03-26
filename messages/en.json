@@ -882,7 +882,17 @@
     "nodeCount": "{healthy}/{total} nodes healthy",
     "latencyMs": "{ms}ms",
     "blockHeight": "Block #{height}",
-    "noNodes": "No nodes available"
+    "noNodes": "No nodes available",
+    "addNode": "Add Node",
+    "addNodeDesc": "Enter a WebSocket node address",
+    "addNodePlaceholder": "ws://127.0.0.1:9944 or wss://...",
+    "addNodeBtn": "Connect",
+    "addingNode": "Connecting...",
+    "addNodeSuccess": "Node added successfully",
+    "addNodeFailed": "Cannot connect to this node. Please check the address",
+    "invalidNodeUrl": "Please enter a valid ws:// or wss:// address",
+    "removeNode": "Remove",
+    "removeNodeConfirm": "Are you sure you want to remove this node?"
   },
   "chainInfo": {
     "title": "Chain Info",
