@@ -732,6 +732,7 @@
     "notePlaceholder": "Note (optional)",
     "connectFirst": "Connect wallet first",
     "membersOnlyHint": "This product is members-only. Please register as a member first.",
+    "autoRegisterHint": "You are not a member yet. You will be auto-registered when placing the order. Fill in a referrer address above if needed.",
     "processing": "Processing...",
     "confirmOrder": "Confirm Order",
     "orderSuccess": "Order placed!",

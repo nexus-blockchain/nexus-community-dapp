@@ -48,8 +48,9 @@ function OrderCreateContent() {
   const shopEntityId = shop?.entityId ?? null;
   const { data: memberInfo } = useMember(shopEntityId, address);
   const isMembersOnly = product?.visibility === 'MembersOnly';
+  const isLevelGated = product?.visibility?.startsWith?.('LevelGated') || false;
   const isMember = !!memberInfo;
-  const memberBlocked = isMembersOnly && !isMember;
+  const needsAutoRegister = (isMembersOnly || isLevelGated) && !isMember;
   const { data: productName } = useIpfsContent(product?.nameCid);
   const { data: shoppingBalanceRaw } = useShoppingBalance(currentEntityId, address);
   const { toNex, toUsdt } = useNexPrice();
@@ -111,7 +112,7 @@ function OrderCreateContent() {
   }, [useShoppingBal, shoppingBalanceRaw, totalNex]);
 
   const handleSubmit = async () => {
-    if (!product || !address || memberBlocked) return;
+    if (!product || !address) return;
     if (referrer && !(await isValidSS58(referrer))) return;
     await mutate([
       product.id,                          // product_id
@@ -361,12 +362,12 @@ function OrderCreateContent() {
         </Card>
       )}
 
-      {memberBlocked && (
-        <Card className="border-destructive">
+      {needsAutoRegister && (
+        <Card className="border-warning">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <AlertCircle className="h-5 w-5 text-destructive" />
-              <p className="text-sm text-destructive">{t('membersOnlyHint')}</p>
+              <UserPlus className="h-5 w-5 text-warning" />
+              <p className="text-sm text-muted-foreground">{t('autoRegisterHint')}</p>
             </div>
           </CardContent>
         </Card>
@@ -376,10 +377,10 @@ function OrderCreateContent() {
         className="w-full"
         size="lg"
         onClick={handleSubmit}
-        disabled={isBusy || !address || txState.status === 'finalized' || !!referrerError || memberBlocked}
+        disabled={isBusy || !address || txState.status === 'finalized' || !!referrerError}
       >
         {isBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-        {!address ? t('connectFirst') : memberBlocked ? t('membersOnlyHint') : isBusy ? t('processing') : t('confirmOrder')}
+        {!address ? t('connectFirst') : isBusy ? t('processing') : t('confirmOrder')}
       </Button>
     </div>
   );

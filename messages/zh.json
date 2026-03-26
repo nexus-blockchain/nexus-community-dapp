@@ -732,6 +732,7 @@
     "notePlaceholder": "备注信息 (可选)",
     "connectFirst": "请先连接钱包",
     "membersOnlyHint": "该商品仅限会员购买，请先注册成为会员",
+    "autoRegisterHint": "您尚未成为会员，下单时系统将自动注册。如需推荐人，请在上方填写推荐人地址。",
     "processing": "处理中...",
     "confirmOrder": "确认下单",
     "orderSuccess": "下单成功!",
