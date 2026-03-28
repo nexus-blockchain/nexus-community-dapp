@@ -101,11 +101,6 @@ function MemberNetworkSection() {
                 </div>
                 {dashboard && (
                   <div className="flex items-center gap-2 mt-0.5">
-                    {dashboard.isQualifiedReferral ? (
-                      <Badge variant="success" className="text-[10px] h-4">{t('qualifiedReferral')}</Badge>
-                    ) : (
-                      <Badge variant="secondary" className="text-[10px] h-4">{t('notQualifiedReferral')}</Badge>
-                    )}
                     {dashboard.activated ? (
                       <Badge variant="default" className="text-[10px] h-4">{t('activated')}</Badge>
                     ) : (
@@ -138,10 +133,6 @@ function MemberNetworkSection() {
               <div>
                 <p className="text-[10px] text-muted-foreground">{t('directReferrals')}</p>
                 <p className="text-base font-bold text-primary">{member.directReferrals}</p>
-              </div>
-              <div>
-                <p className="text-[10px] text-muted-foreground">{t('qualifiedReferrals')}</p>
-                <p className="text-base font-bold">{member.qualifiedReferrals}</p>
               </div>
               <div>
                 <p className="text-[10px] text-muted-foreground">{t('indirectReferrals')}</p>

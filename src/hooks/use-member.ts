@@ -18,7 +18,6 @@ export function useMember(entityId: number | null, address: string | null) {
       return {
         referrer: data.referrer ?? null,
         directReferrals: data.directReferrals ?? data.direct_referrals ?? 0,
-        qualifiedReferrals: data.qualifiedReferrals ?? data.qualified_referrals ?? 0,
         indirectReferrals: data.indirectReferrals ?? data.indirect_referrals ?? 0,
         teamSize: data.teamSize ?? data.team_size ?? 0,
         totalSpent: data.totalSpent ?? data.total_spent ?? 0,

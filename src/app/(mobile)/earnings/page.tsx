@@ -19,7 +19,7 @@ import { Button } from '@/components/ui/button';
 import { useEntityStore, useWalletStore } from '@/stores';
 import { useCommissionDashboard, useEntityCommissionOverview } from '@/hooks/use-commission-dashboard';
 import { useMemberCommissionStats, useWithdrawCommission, useWithdrawalRecords } from '@/hooks/use-commission-core';
-import { useSingleLineMemberStats } from '@/hooks/use-commission';
+import { useSingleLineMemberView } from '@/hooks/use-single-line-commission';
 import { formatBalance, bpsToPercent, isTxBusy } from '@/lib/utils/chain-helpers';
 import type { LucideIcon } from 'lucide-react';
 import { HelpTip } from '@/components/ui/help-tip';
@@ -72,7 +72,7 @@ export default function EarningsPage() {
   const { data: dashboard, isLoading: dashLoading } = useCommissionDashboard(currentEntityId, address);
   const { data: memberStats, isLoading: statsLoading } = useMemberCommissionStats(currentEntityId, address);
   const { data: overview, isLoading: overviewLoading } = useEntityCommissionOverview(currentEntityId);
-  const { data: slMemberStats } = useSingleLineMemberStats(currentEntityId, address);
+  const { data: slMemberView } = useSingleLineMemberView(currentEntityId, address);
 
   const withdraw = useWithdrawCommission();
   const withdrawBusy = isTxBusy(withdraw.txState);
@@ -179,8 +179,8 @@ export default function EarningsPage() {
   const slDownline = (modes & MODES.SINGLE_LINE_DOWNLINE) > 0;
   if (slUpline || slDownline) {
     const slRunning = overview?.singleLineEnabled ?? false;
-    const slTotal = slMemberStats
-      ? (BigInt(slMemberStats.totalEarnedAsUpline || '0') + BigInt(slMemberStats.totalEarnedAsDownline || '0')).toString()
+    const slTotal = slMemberView
+      ? (BigInt(slMemberView.summary.totalEarnedAsUpline || '0') + BigInt(slMemberView.summary.totalEarnedAsDownline || '0')).toString()
       : null;
     plugins.push({
       key: 'singleLine',

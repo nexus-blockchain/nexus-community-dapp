@@ -286,10 +286,6 @@ function InviteTab({ t }: { t: ReturnType<typeof useTranslations> }) {
                 <p className="text-xl font-bold text-primary">{member.directReferrals}</p>
               </div>
               <div>
-                <p className="text-muted-foreground flex items-center justify-center gap-1">{t('qualifiedReferrals')} <HelpTip helpKey="member.qualifiedReferrals" iconSize={12} /></p>
-                <p className="text-xl font-bold">{member.qualifiedReferrals}</p>
-              </div>
-              <div>
                 <p className="text-muted-foreground flex items-center justify-center gap-1">{t('teamSize')} <HelpTip helpKey="member.teamSize" iconSize={12} /></p>
                 <p className="text-xl font-bold">{member.teamSize}</p>
               </div>
@@ -378,10 +374,6 @@ export default function MemberNetworkPage() {
                   <div>
                     <p className="text-xs text-muted-foreground">{t('directReferrals')}</p>
                     <p className="text-lg font-bold text-primary">{member.directReferrals}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">{t('qualifiedReferrals')}</p>
-                    <p className="text-lg font-bold">{member.qualifiedReferrals}</p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">{t('indirectReferrals')}</p>

@@ -89,11 +89,6 @@ export default function MemberProfilePage() {
                   <p className="text-sm text-muted-foreground">{t('effectiveLevel')}</p>
                   <p className="text-2xl font-bold">{levelName(dashboard.effectiveLevelId)}</p>
                   <div className="flex items-center gap-2 mt-1">
-                    {dashboard.isQualifiedReferral ? (
-                      <Badge variant="success" className="text-xs">{t('qualifiedReferral')}</Badge>
-                    ) : (
-                      <Badge variant="secondary" className="text-xs">{t('notQualifiedReferral')}</Badge>
-                    )}
                     {dashboard.activated ? (
                       <Badge variant="default" className="text-xs">{t('activated')}</Badge>
                     ) : (
@@ -170,10 +165,6 @@ export default function MemberProfilePage() {
                 <div>
                   <p className="text-xs text-muted-foreground">{t('directReferrals')}</p>
                   <p className="text-xl font-bold text-primary">{dashboard.directReferrals}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">{t('qualifiedReferrals')}</p>
-                  <p className="text-xl font-bold">{dashboard.qualifiedReferrals}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">{t('indirectReferrals')}</p>

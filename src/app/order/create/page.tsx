@@ -109,7 +109,7 @@ function OrderCreateContent() {
     const cap = maxDeduct < bal ? maxDeduct : bal;
     if (cap <= BigInt(0)) return null;
     return cap.toString();
-  }, [useShoppingBal, shoppingBalanceRaw, totalNex]);
+  }, [useShoppingBal, shoppingBalanceRaw, totalNex, MIN_NATIVE_RESERVE]);
 
   const handleSubmit = async () => {
     if (!product || !address) return;

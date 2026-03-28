@@ -55,13 +55,29 @@ export default function PoolRewardPage() {
   const alreadyClaimed = memberView
     ? memberView.alreadyClaimed
     : (round && lastClaimed != null && round.roundId <= lastClaimed);
+  const effectivePaused = memberView?.isPaused ?? paused;
+  const activeRound = memberView ? {
+    roundId: memberView.currentRoundId,
+    startBlock: memberView.roundStartBlock,
+    endBlock: memberView.roundEndBlock,
+    poolSnapshot: memberView.poolSnapshot,
+    tokenPoolSnapshot: memberView.tokenPoolSnapshot,
+    levelProgress: memberView.levelProgress,
+    tokenLevelProgress: memberView.tokenLevelProgress,
+  } : null;
   const canClaim = memberView
     ? (!memberView.alreadyClaimed && !memberView.isPaused && memberView.currentRoundId > 0 && BigInt(claimableNex) > BigInt(0))
-    : (round && lastClaimed != null && round.roundId > lastClaimed && !paused);
+    : (round && lastClaimed != null && round.roundId > lastClaimed && !effectivePaused);
+  const isExactLevelIneligible = !!memberView
+    && !memberView.isPaused
+    && !memberView.alreadyClaimed
+    && !memberView.roundExpired
+    && memberView.currentRoundId > 0
+    && BigInt(claimableNex) === BigInt(0);
   const isBusy = isTxBusy(claim.txState);
 
   // Calculate end block and remaining
-  const endBlock = round && config ? round.startBlock + config.roundDuration : 0;
+  const endBlock = activeRound?.endBlock ?? (round && config ? round.startBlock + config.roundDuration : 0);
   const remaining = endBlock && currentBlock ? Math.max(0, endBlock - currentBlock) : 0;
 
   // Level name lookup
@@ -105,8 +121,8 @@ export default function PoolRewardPage() {
         <div className="space-y-4">
           {/* Status */}
           <div className="flex items-center gap-2">
-            <Badge variant={paused ? 'warning' : 'success'}>
-              {paused ? t('paused') : t('running')}
+            <Badge variant={effectivePaused ? 'warning' : 'success'}>
+              {effectivePaused ? t('paused') : t('running')}
             </Badge>
             {config?.tokenPoolEnabled && (
               <Badge variant="outline">{t('tokenPoolEnabled')}</Badge>
@@ -157,7 +173,7 @@ export default function PoolRewardPage() {
                       <div className="rounded-lg border p-3">
                         <p className="text-xs text-muted-foreground">{t('claimableToken')}</p>
                         <p className="text-lg font-semibold text-success">
-                          {BigInt(claimableToken) > BigInt(0) ? `${formatBalance(claimableToken)} Token` : '-'}
+                          {BigInt(claimableToken) > BigInt(0) ? `${formatBalance(claimableToken)} USDT` : '-'}
                         </p>
                       </div>
                     )}
@@ -169,15 +185,17 @@ export default function PoolRewardPage() {
                       <p className="text-sm font-medium">{t('claimReward')}</p>
                       <p className="text-xs text-muted-foreground">
                         {!canClaim && address && (
-                          paused
+                          effectivePaused
                             ? t('paused')
                             : alreadyClaimed
                               ? t('alreadyClaimed')
                               : memberView?.roundExpired
                                 ? t('roundExpired')
-                                : !round
+                                : !(activeRound || round)
                                   ? t('noActiveRound')
-                                  : t('noClaim')
+                                  : isExactLevelIneligible
+                                    ? t('levelNotEligible')
+                                    : t('noClaim')
                         )}
                         {canClaim && (
                           <span className="font-medium text-success">{t('claimAvailable')}</span>
@@ -192,6 +210,9 @@ export default function PoolRewardPage() {
                       {isBusy ? t('claiming') : canClaim ? t('claim') : t('noClaim')}
                     </Button>
                   </div>
+                  {isExactLevelIneligible && (
+                    <p className="text-xs text-muted-foreground">{t('eligibilityHint')}</p>
+                  )}
                   {claim.txState.status === 'finalized' && (
                     <div className="flex items-center gap-2 text-sm text-success">
                       <Check className="h-4 w-4" /> {t('claimSuccess')}
@@ -222,7 +243,7 @@ export default function PoolRewardPage() {
                           <div className="text-right">
                             <p className="font-semibold text-success">{formatBalance(r.amount)} NEX</p>
                             {r.tokenAmount !== '0' && (
-                              <p className="text-xs text-muted-foreground">+ {formatBalance(r.tokenAmount)} Token</p>
+                              <p className="text-xs text-muted-foreground">+ {formatBalance(r.tokenAmount)} USDT</p>
                             )}
                           </div>
                         </div>
@@ -249,21 +270,21 @@ export default function PoolRewardPage() {
               <div className="space-y-4">
                 {/* Metric grid */}
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                  <MetricCell label={t('roundId')} value={round?.roundId ?? '-'} helpKey="poolReward.roundId" />
-                  <MetricCell label={t('startBlock')} value={round ? `#${round.startBlock}` : '-'} helpKey="poolReward.startBlock" />
+                  <MetricCell label={t('roundId')} value={activeRound?.roundId ?? round?.roundId ?? '-'} helpKey="poolReward.roundId" />
+                  <MetricCell label={t('startBlock')} value={(activeRound?.startBlock ?? round?.startBlock) ? `#${activeRound?.startBlock ?? round?.startBlock}` : '-'} helpKey="poolReward.startBlock" />
                   <MetricCell label={t('endBlock')} value={endBlock ? `#${endBlock}` : '-'} helpKey="poolReward.endBlock" />
                   <MetricCell
                     label={t('remainingBlocks')}
-                    value={round ? String(remaining) : '-'}
+                    value={activeRound || round ? String(remaining) : '-'}
                     highlight={remaining > 0 && remaining < 100}
                     helpKey="poolReward.remainingBlocks"
                   />
                   <MetricCell
                     label={t('poolSnapshot')}
-                    value={round ? `${formatBalance(round.poolSnapshot)} NEX` : '-'}
+                    value={activeRound ? `${formatBalance(activeRound.poolSnapshot)} NEX` : round ? `${formatBalance(round.poolSnapshot)} NEX` : '-'}
                     helpKey="poolReward.poolSnapshot"
                   />
-                  <MetricCell label={t('lastRoundId')} value={distStats?.totalRoundsCompleted ?? 0} />
+                  <MetricCell label={t('lastRoundId')} value={activeRound?.roundId ?? distStats?.totalRoundsCompleted ?? 0} />
                 </div>
 
                 {/* Sediment pool balance */}
@@ -273,7 +294,12 @@ export default function PoolRewardPage() {
                 </div>
 
                 {/* Token pool snapshot */}
-                {round?.tokenPoolSnapshot && (
+                {activeRound?.tokenPoolSnapshot ? (
+                  <div className="rounded-lg border bg-muted/50 p-3">
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">{t('tokenPoolSnapshot')} <HelpTip helpKey="poolReward.tokenPoolSnapshot" iconSize={12} /></p>
+                    <p className="text-xl font-bold">{formatBalance(activeRound.tokenPoolSnapshot)} Token</p>
+                  </div>
+                ) : round?.tokenPoolSnapshot && (
                   <div className="rounded-lg border bg-muted/50 p-3">
                     <p className="text-xs text-muted-foreground flex items-center gap-1">{t('tokenPoolSnapshot')} <HelpTip helpKey="poolReward.tokenPoolSnapshot" iconSize={12} /></p>
                     <p className="text-xl font-bold">{formatBalance(round.tokenPoolSnapshot)} Token</p>
@@ -319,7 +345,17 @@ export default function PoolRewardPage() {
                 ) : null}
 
                 {/* Token Level snapshots table */}
-                {round?.tokenLevelSnapshots && round.tokenLevelSnapshots.length > 0 && (
+                {activeRound?.tokenLevelProgress && activeRound.tokenLevelProgress.length > 0 ? (
+                  <div>
+                    <p className="mb-2 text-sm font-semibold">{t('tokenLevelSnapshots')}</p>
+                    <LevelProgressTable
+                      progress={activeRound.tokenLevelProgress}
+                      unit="Token"
+                      levelNameById={levelNameById}
+                      t={t}
+                    />
+                  </div>
+                ) : round?.tokenLevelSnapshots && round.tokenLevelSnapshots.length > 0 && (
                   <div>
                     <p className="mb-2 text-sm font-semibold">{t('tokenLevelSnapshots')}</p>
                     <LevelSnapshotTable
@@ -447,8 +483,8 @@ export default function PoolRewardPage() {
                   {/* Enabled status */}
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">{t('enabledLabel')}</span>
-                    <Badge variant={paused ? 'warning' : 'success'}>
-                      {paused ? t('paused') : t('enabled')}
+                    <Badge variant={effectivePaused ? 'warning' : 'success'}>
+                      {effectivePaused ? t('paused') : t('enabled')}
                     </Badge>
                   </div>
 
@@ -456,7 +492,7 @@ export default function PoolRewardPage() {
                   <div>
                     <p className="mb-2 text-sm text-muted-foreground flex items-center gap-1">{t('levelRatios')} <HelpTip helpKey="poolReward.levelRatios" iconSize={12} /></p>
                     <div className="space-y-1">
-                      {config.levelRatios.map(([levelId, ratio]) => (
+                      {config.levelRules.map(([levelId, ratio]) => (
                         <div key={levelId} className="flex items-center justify-between rounded-lg bg-secondary p-2 text-sm">
                           <span>
                             Lv{levelId}
@@ -655,8 +691,8 @@ function RoundHistoryItem({
   t: (key: string, values?: Record<string, string | number>) => string;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const totalClaimed = round.levelSnapshots.reduce((sum, s) => sum + s.claimedCount, 0);
-  const totalMembers = round.levelSnapshots.reduce((sum, s) => sum + s.memberCount, 0);
+  const totalClaimed = round.claimedCount;
+  const totalMembers = round.eligibleCount || round.levelSnapshots.reduce((sum, s) => sum + s.memberCount, 0);
   const claimPct = totalMembers > 0 ? Math.round((totalClaimed / totalMembers) * 100) : 0;
 
   return (
@@ -673,9 +709,17 @@ function RoundHistoryItem({
               {t('roundBlocks', { start: round.startBlock, end: round.endBlock })}
             </span>
           </div>
-          <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
+          <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
             <span>{t('totalPooled')}: {formatBalance(round.poolSnapshot)} NEX</span>
             <span>{t('claimRate')}: {claimPct}% ({totalClaimed}/{totalMembers})</span>
+            <span>{t('perMemberReward')}: {formatBalance(round.perMemberReward)} NEX</span>
+            <span>{t('memberCount')}: {round.eligibleCount}</span>
+            {round.tokenPerMemberReward && BigInt(round.tokenPerMemberReward) > BigInt(0) && (
+              <span>{t('tokenPerMemberReward')}: {formatBalance(round.tokenPerMemberReward)} Token</span>
+            )}
+            {round.tokenClaimedCount > 0 && (
+              <span>{t('tokenClaims')}: {round.tokenClaimedCount}</span>
+            )}
           </div>
         </div>
         {expanded ? <ChevronUp className="h-4 w-4 shrink-0" /> : <ChevronDown className="h-4 w-4 shrink-0" />}

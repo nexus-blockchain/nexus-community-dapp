@@ -71,8 +71,8 @@ function parseCommissionDashboard(data: any): MemberCommissionDashboard {
     },
     referral: {
       totalEarned: String((data.referral)?.totalEarned ?? (data.referral)?.total_earned ?? '0'),
-      capMaxPerOrder: (data.referral)?.capMaxPerOrder ?? (data.referral)?.cap_max_per_order ?? null,
-      capMaxTotal: (data.referral)?.capMaxTotal ?? (data.referral)?.cap_max_total ?? null,
+      capMaxPerOrder: (data.referral)?.capMaxPerOrderUsdt ?? (data.referral)?.cap_max_per_order_usdt ?? (data.referral)?.capMaxPerOrder ?? (data.referral)?.cap_max_per_order ?? null,
+      capMaxTotal: (data.referral)?.capMaxTotalUsdt ?? (data.referral)?.cap_max_total_usdt ?? (data.referral)?.capMaxTotal ?? (data.referral)?.cap_max_total ?? null,
     },
   };
 }
@@ -107,9 +107,9 @@ export function useDirectReferralInfo(entityId: number | null, address: string |
       if (!data) return null;
       return {
         referralTotalEarned: String(data.referralTotalEarned ?? data.referral_total_earned ?? '0'),
-        capMaxPerOrder: data.capMaxPerOrder ?? data.cap_max_per_order ?? null,
-        capMaxTotal: data.capMaxTotal ?? data.cap_max_total ?? null,
-        capRemaining: data.capRemaining ?? data.cap_remaining ?? null,
+        capMaxPerOrder: data.capMaxPerOrderUsdt ?? data.cap_max_per_order_usdt ?? data.capMaxPerOrder ?? data.cap_max_per_order ?? null,
+        capMaxTotal: data.capMaxTotalUsdt ?? data.cap_max_total_usdt ?? data.capMaxTotal ?? data.cap_max_total ?? null,
+        capRemaining: data.capRemainingUsdt ?? data.cap_remaining_usdt ?? data.capRemaining ?? data.cap_remaining ?? null,
       };
     },
     { staleTime: STALE_TIMES.runtimeApi, enabled: entityId != null && !!address },
@@ -206,8 +206,8 @@ export function useDirectReferralDetails(entityId: number | null, address: strin
         })),
         totalCount: data.totalCount ?? data.total_count ?? 0,
         totalCommissionEarned: String(data.totalCommissionEarned ?? data.total_commission_earned ?? '0'),
-        capMaxTotal: data.capMaxTotal ?? data.cap_max_total ?? null,
-        capRemaining: data.capRemaining ?? data.cap_remaining ?? null,
+        capMaxTotal: data.capMaxTotalUsdt ?? data.cap_max_total_usdt ?? data.capMaxTotal ?? data.cap_max_total ?? null,
+        capRemaining: data.capRemainingUsdt ?? data.cap_remaining_usdt ?? data.capRemaining ?? data.cap_remaining ?? null,
       };
     },
     { staleTime: STALE_TIMES.runtimeApi, enabled: entityId != null && !!address },

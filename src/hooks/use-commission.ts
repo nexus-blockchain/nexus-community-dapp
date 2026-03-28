@@ -3,6 +3,12 @@
 import { useEntityQuery, hasRuntimeApi } from './use-entity-query';
 import { useEntityMutation } from './use-entity-mutation';
 import { STALE_TIMES } from '@/lib/chain/constants';
+import {
+  parseSingleLineMemberView,
+  parseSingleLinePayouts,
+  parseSingleLinePosition,
+  parseSingleLineStats,
+} from '@/lib/chain/adapters/single-line-parsers';
 import type {
   SingleLineConfig,
   SingleLinePayoutRecord,
@@ -17,6 +23,7 @@ import type {
   CompletedRoundSummary,
   PoolFundingRecord,
   PoolRewardMemberView,
+  LevelSnapshot,
 } from '@/lib/types';
 
 // ======================== Single Line ========================
@@ -60,11 +67,12 @@ export function useSingleLineIndex(entityId: number | null, address: string | nu
     ['singleLineIndex', entityId, address],
     async (api) => {
       if (entityId == null || !address) return null;
-      const raw = await (api.query as any).commissionSingleLine.singleLineIndex(entityId, address);
-      const val = raw.toJSON();
-      return val != null ? Number(val) : null;
+      if (!hasRuntimeApi(api, 'singleLineQueryApi')) return null;
+      const raw = await (api.call as any).singleLineQueryApi.singleLineMemberPosition(entityId, address);
+      const parsed = parseSingleLinePosition(raw);
+      return parsed?.position ?? null;
     },
-    { staleTime: STALE_TIMES.entity, enabled: entityId != null && !!address },
+    { staleTime: STALE_TIMES.runtimeApi, enabled: entityId != null && !!address },
   );
 }
 
@@ -72,16 +80,14 @@ export function useSingleLineStats(entityId: number | null) {
   return useEntityQuery<{ totalOrders: number; totalUplinePayouts: number; totalDownlinePayouts: number }>(
     ['singleLineStats', entityId],
     async (api) => {
-      if (entityId == null) return { totalOrders: 0, totalUplinePayouts: 0, totalDownlinePayouts: 0 };
-      const raw = await (api.query as any).commissionSingleLine.entitySingleLineStats(entityId);
-      const data = raw.toJSON();
-      return {
-        totalOrders: data?.totalOrders ?? data?.total_orders ?? 0,
-        totalUplinePayouts: data?.totalUplinePayouts ?? data?.total_upline_payouts ?? 0,
-        totalDownlinePayouts: data?.totalDownlinePayouts ?? data?.total_downline_payouts ?? 0,
-      };
+      const empty = { totalOrders: 0, totalUplinePayouts: 0, totalDownlinePayouts: 0 };
+      if (entityId == null) return empty;
+      if (!hasRuntimeApi(api, 'singleLineQueryApi')) return empty;
+      const raw = await (api.call as any).singleLineQueryApi.singleLineOverview(entityId);
+      const parsed = parseSingleLineStats(raw);
+      return parsed?.stats ?? empty;
     },
-    { staleTime: STALE_TIMES.entity, enabled: entityId != null },
+    { staleTime: STALE_TIMES.runtimeApi, enabled: entityId != null },
   );
 }
 
@@ -112,18 +118,11 @@ export function useSingleLinePayouts(entityId: number | null, address: string | 
     ['singleLinePayouts', entityId, address],
     async (api) => {
       if (entityId == null || !address) return [];
-      const raw = await (api.query as any).commissionSingleLine.memberSingleLinePayouts(entityId, address);
-      const data: any[] = raw.toJSON() ?? [];
-      return data.map((r) => ({
-        orderId: r.orderId ?? r.order_id ?? 0,
-        amount: String(r.amount ?? '0'),
-        direction: parseDirection(r.direction),
-        buyer: r.buyer ?? '',
-        levelDistance: r.levelDistance ?? r.level_distance ?? 0,
-        blockNumber: r.blockNumber ?? r.block_number ?? 0,
-      }));
+      if (!hasRuntimeApi(api, 'singleLineQueryApi')) return [];
+      const raw = await (api.call as any).singleLineQueryApi.singleLineMemberPayouts(entityId, address);
+      return parseSingleLinePayouts(raw);
     },
-    { staleTime: STALE_TIMES.commission, enabled: entityId != null && !!address },
+    { staleTime: STALE_TIMES.runtimeApi, enabled: entityId != null && !!address },
   );
 }
 
@@ -134,17 +133,12 @@ export function useSingleLineMemberStats(entityId: number | null, address: strin
     async (api) => {
       const empty: MemberSingleLineSummary = { totalEarnedAsUpline: '0', totalEarnedAsDownline: '0', totalPayoutCount: 0, lastPayoutBlock: 0 };
       if (entityId == null || !address) return empty;
-      const raw = await (api.query as any).commissionSingleLine.memberSingleLineStats(entityId, address);
-      const data = raw.toJSON();
-      if (!data) return empty;
-      return {
-        totalEarnedAsUpline: String(data.totalEarnedAsUpline ?? data.total_earned_as_upline ?? '0'),
-        totalEarnedAsDownline: String(data.totalEarnedAsDownline ?? data.total_earned_as_downline ?? '0'),
-        totalPayoutCount: data.totalPayoutCount ?? data.total_payout_count ?? 0,
-        lastPayoutBlock: data.lastPayoutBlock ?? data.last_payout_block ?? 0,
-      };
+      if (!hasRuntimeApi(api, 'singleLineQueryApi')) return empty;
+      const raw = await (api.call as any).singleLineQueryApi.singleLineMemberView(entityId, address);
+      const parsed = parseSingleLineMemberView(raw);
+      return parsed?.summary ?? empty;
     },
-    { staleTime: STALE_TIMES.commission, enabled: entityId != null && !!address },
+    { staleTime: STALE_TIMES.runtimeApi, enabled: entityId != null && !!address },
   );
 }
 
@@ -361,6 +355,30 @@ export function useMultiLevelSummaryStats(entityId: number | null, address: stri
 
 // ======================== Pool Reward ========================
 
+function parsePoolRewardLevelRules(data: any): [number, number][] {
+  return (data.levelRules ?? data.level_rules ?? data.levelRatios ?? data.level_ratios ?? []).map((item: any) => [
+    Number(item?.[0] ?? 0),
+    Number(item?.[1] ?? 0),
+  ]);
+}
+
+function toOptionalString(value: unknown): string | null {
+  return value == null ? null : String(value);
+}
+
+function parseLevelSnapshots(
+  quotas: any,
+  perMemberReward: unknown,
+): LevelSnapshot[] {
+  const reward = String(perMemberReward ?? '0');
+  return (quotas ?? []).map((s: any) => ({
+    levelId: s.levelId ?? s.level_id ?? 0,
+    memberCount: s.memberCount ?? s.member_count ?? 0,
+    perMemberReward: reward,
+    claimedCount: s.claimedCount ?? s.claimed_count ?? 0,
+  }));
+}
+
 export function usePoolRewardConfig(entityId: number | null) {
   return useEntityQuery<PoolRewardConfig | null>(
     ['poolRewardConfig', entityId],
@@ -370,7 +388,7 @@ export function usePoolRewardConfig(entityId: number | null) {
       if (raw.isNone) return null;
       const data = raw.unwrap().toJSON();
       return {
-        levelRatios: data.levelRatios ?? data.level_ratios ?? [],
+        levelRules: parsePoolRewardLevelRules(data),
         roundDuration: data.roundDuration ?? data.round_duration ?? 0,
         tokenPoolEnabled: data.tokenPoolEnabled ?? data.token_pool_enabled ?? false,
       } as PoolRewardConfig;
@@ -387,18 +405,25 @@ export function useCurrentRound(entityId: number | null) {
       const raw = await (api.query as any).commissionPoolReward.currentRound(entityId);
       if (raw.isNone) return null;
       const data = raw.unwrap().toJSON();
+      const levelSnapshots = parseLevelSnapshots(
+        data.levelQuotas ?? data.level_quotas ?? data.levelSnapshots ?? data.level_snapshots,
+        data.perMemberReward ?? data.per_member_reward,
+      );
+      const tokenLevelSnapshotsRaw = data.tokenLevelQuotas ?? data.token_level_quotas ?? data.tokenLevelSnapshots ?? data.token_level_snapshots;
       return {
         roundId: data.roundId ?? data.round_id ?? 0,
         startBlock: data.startBlock ?? data.start_block ?? 0,
         poolSnapshot: String(data.poolSnapshot ?? data.pool_snapshot ?? '0'),
-        levelSnapshots: (data.levelSnapshots ?? data.level_snapshots ?? []).map((s: any) => ({
-          levelId: s.levelId ?? s.level_id ?? 0,
-          memberCount: s.memberCount ?? s.member_count ?? 0,
-          perMemberReward: String(s.perMemberReward ?? s.per_member_reward ?? '0'),
-          claimedCount: s.claimedCount ?? s.claimed_count ?? 0,
-        })),
-        tokenPoolSnapshot: data.tokenPoolSnapshot ?? data.token_pool_snapshot ?? null,
-        tokenLevelSnapshots: data.tokenLevelSnapshots ?? data.token_level_snapshots ?? null,
+        eligibleCount: data.eligibleCount ?? data.eligible_count ?? 0,
+        perMemberReward: String(data.perMemberReward ?? data.per_member_reward ?? '0'),
+        claimedCount: data.claimedCount ?? data.claimed_count ?? 0,
+        levelSnapshots,
+        tokenPoolSnapshot: toOptionalString(data.tokenPoolSnapshot ?? data.token_pool_snapshot ?? null),
+        tokenPerMemberReward: toOptionalString(data.tokenPerMemberReward ?? data.token_per_member_reward ?? null),
+        tokenClaimedCount: data.tokenClaimedCount ?? data.token_claimed_count ?? 0,
+        tokenLevelSnapshots: tokenLevelSnapshotsRaw
+          ? parseLevelSnapshots(tokenLevelSnapshotsRaw, data.tokenPerMemberReward ?? data.token_per_member_reward)
+          : null,
       } as RoundInfo;
     },
     { staleTime: STALE_TIMES.entity, enabled: entityId != null, refetchInterval: 30000 },
@@ -487,48 +512,52 @@ export function useRoundHistory(entityId: number | null) {
       if (entityId == null) return [];
       const raw = await (api.query as any).commissionPoolReward.roundHistory(entityId);
       const data: any[] = raw.toJSON() ?? [];
-      return data.map((r) => ({
-        roundId: r.roundId ?? r.round_id ?? 0,
-        startBlock: r.startBlock ?? r.start_block ?? 0,
-        endBlock: r.endBlock ?? r.end_block ?? 0,
-        poolSnapshot: String(r.poolSnapshot ?? r.pool_snapshot ?? '0'),
-        tokenPoolSnapshot: r.tokenPoolSnapshot ?? r.token_pool_snapshot ?? null,
-        levelSnapshots: (r.levelSnapshots ?? r.level_snapshots ?? []).map((s: any) => ({
-          levelId: s.levelId ?? s.level_id ?? 0,
-          memberCount: s.memberCount ?? s.member_count ?? 0,
-          perMemberReward: String(s.perMemberReward ?? s.per_member_reward ?? '0'),
-          claimedCount: s.claimedCount ?? s.claimed_count ?? 0,
-        })),
-        tokenLevelSnapshots: (r.tokenLevelSnapshots ?? r.token_level_snapshots)
-          ? (r.tokenLevelSnapshots ?? r.token_level_snapshots).map((s: any) => ({
-              levelId: s.levelId ?? s.level_id ?? 0,
-              memberCount: s.memberCount ?? s.member_count ?? 0,
-              perMemberReward: String(s.perMemberReward ?? s.per_member_reward ?? '0'),
-              claimedCount: s.claimedCount ?? s.claimed_count ?? 0,
-            }))
-          : null,
-        fundingSummary: {
-          nexCommissionRemainder: String(
-            (r.fundingSummary ?? r.funding_summary)?.nexCommissionRemainder ??
-            (r.fundingSummary ?? r.funding_summary)?.nex_commission_remainder ?? '0'
-          ),
-          tokenPlatformFeeRetention: String(
-            (r.fundingSummary ?? r.funding_summary)?.tokenPlatformFeeRetention ??
-            (r.fundingSummary ?? r.funding_summary)?.token_platform_fee_retention ?? '0'
-          ),
-          tokenCommissionRemainder: String(
-            (r.fundingSummary ?? r.funding_summary)?.tokenCommissionRemainder ??
-            (r.fundingSummary ?? r.funding_summary)?.token_commission_remainder ?? '0'
-          ),
-          nexCancelReturn: String(
-            (r.fundingSummary ?? r.funding_summary)?.nexCancelReturn ??
-            (r.fundingSummary ?? r.funding_summary)?.nex_cancel_return ?? '0'
-          ),
-          totalFundingCount:
-            (r.fundingSummary ?? r.funding_summary)?.totalFundingCount ??
-            (r.fundingSummary ?? r.funding_summary)?.total_funding_count ?? 0,
-        },
-      }));
+      return data.map((r) => {
+        const perMemberReward = r.perMemberReward ?? r.per_member_reward ?? '0';
+        const tokenPerMemberReward = r.tokenPerMemberReward ?? r.token_per_member_reward ?? null;
+        const levelSnapshots = parseLevelSnapshots(
+          r.levelQuotas ?? r.level_quotas ?? r.levelSnapshots ?? r.level_snapshots,
+          perMemberReward,
+        );
+        const tokenLevelSnapshotsRaw = r.tokenLevelQuotas ?? r.token_level_quotas ?? r.tokenLevelSnapshots ?? r.token_level_snapshots;
+        return {
+          roundId: r.roundId ?? r.round_id ?? 0,
+          startBlock: r.startBlock ?? r.start_block ?? 0,
+          endBlock: r.endBlock ?? r.end_block ?? 0,
+          poolSnapshot: String(r.poolSnapshot ?? r.pool_snapshot ?? '0'),
+          eligibleCount: r.eligibleCount ?? r.eligible_count ?? 0,
+          perMemberReward: String(perMemberReward ?? '0'),
+          claimedCount: r.claimedCount ?? r.claimed_count ?? 0,
+          tokenPoolSnapshot: toOptionalString(r.tokenPoolSnapshot ?? r.token_pool_snapshot ?? null),
+          tokenPerMemberReward: toOptionalString(tokenPerMemberReward),
+          tokenClaimedCount: r.tokenClaimedCount ?? r.token_claimed_count ?? 0,
+          levelSnapshots,
+          tokenLevelSnapshots: tokenLevelSnapshotsRaw
+            ? parseLevelSnapshots(tokenLevelSnapshotsRaw, tokenPerMemberReward)
+            : null,
+          fundingSummary: {
+            nexCommissionRemainder: String(
+              (r.fundingSummary ?? r.funding_summary)?.nexCommissionRemainder ??
+              (r.fundingSummary ?? r.funding_summary)?.nex_commission_remainder ?? '0'
+            ),
+            tokenPlatformFeeRetention: String(
+              (r.fundingSummary ?? r.funding_summary)?.tokenPlatformFeeRetention ??
+              (r.fundingSummary ?? r.funding_summary)?.token_platform_fee_retention ?? '0'
+            ),
+            tokenCommissionRemainder: String(
+              (r.fundingSummary ?? r.funding_summary)?.tokenCommissionRemainder ??
+              (r.fundingSummary ?? r.funding_summary)?.token_commission_remainder ?? '0'
+            ),
+            nexCancelReturn: String(
+              (r.fundingSummary ?? r.funding_summary)?.nexCancelReturn ??
+              (r.fundingSummary ?? r.funding_summary)?.nex_cancel_return ?? '0'
+            ),
+            totalFundingCount:
+              (r.fundingSummary ?? r.funding_summary)?.totalFundingCount ??
+              (r.fundingSummary ?? r.funding_summary)?.total_funding_count ?? 0,
+          },
+        };
+      });
     },
     { staleTime: STALE_TIMES.entity, enabled: entityId != null },
   );
@@ -589,12 +618,12 @@ export function usePoolRewardMemberView(entityId: number | null, address: string
       return {
         roundDuration: d.roundDuration ?? d.round_duration ?? 0,
         tokenPoolEnabled: d.tokenPoolEnabled ?? d.token_pool_enabled ?? false,
-        levelRatios: d.levelRatios ?? d.level_ratios ?? [],
+        levelRules: parsePoolRewardLevelRules(d),
         currentRoundId: d.currentRoundId ?? d.current_round_id ?? 0,
         roundStartBlock: d.roundStartBlock ?? d.round_start_block ?? 0,
         roundEndBlock: d.roundEndBlock ?? d.round_end_block ?? 0,
         poolSnapshot: String(d.poolSnapshot ?? d.pool_snapshot ?? '0'),
-        tokenPoolSnapshot: d.tokenPoolSnapshot ?? d.token_pool_snapshot ?? null,
+        tokenPoolSnapshot: toOptionalString(d.tokenPoolSnapshot ?? d.token_pool_snapshot ?? null),
         effectiveLevel: d.effectiveLevel ?? d.effective_level ?? 0,
         claimableNex: String(d.claimableNex ?? d.claimable_nex ?? '0'),
         claimableToken: String(d.claimableToken ?? d.claimable_token ?? '0'),
@@ -669,6 +698,6 @@ export function useCurrentRoundFunding(entityId: number | null) {
 // Commission mutations
 export function useClaimPoolReward() {
   return useEntityMutation('commissionPoolReward', 'claimPoolReward', {
-    invalidateKeys: [['currentRound'], ['lastClaimedRound'], ['claimRecords'], ['distributionStats']],
+    invalidateKeys: [['currentRound'], ['lastClaimedRound'], ['claimRecords'], ['distributionStats'], ['poolRewardMemberView']],
   });
 }

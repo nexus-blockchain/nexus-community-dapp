@@ -12,14 +12,14 @@ import { HelpTip } from '@/components/ui/help-tip';
 import { useEntityStore, useWalletStore } from '@/stores';
 import {
   useSingleLineConfig,
-  useSingleLineEnabled,
-  useSingleLineIndex,
-  useSingleLineStats,
   useSingleLineQueue,
-  useSingleLinePayouts,
-  useSingleLineMemberStats,
   useSingleLineCommissionRecords,
 } from '@/hooks/use-commission';
+import {
+  useSingleLineOverview,
+  useSingleLinePosition,
+  useSingleLineMemberView,
+} from '@/hooks/use-single-line-commission';
 import { formatBalance, bpsToPercent, shortAddress } from '@/lib/utils/chain-helpers';
 import { useMemo, useState, useCallback } from 'react';
 import type { CommissionRecord, CommissionStatus } from '@/lib/types';
@@ -79,25 +79,24 @@ export default function SingleLineEarningsPage() {
   const { currentEntityId } = useEntityStore();
   const { address } = useWalletStore();
   const { data: config, isLoading } = useSingleLineConfig(currentEntityId);
-  const { data: enabled } = useSingleLineEnabled(currentEntityId);
-  const { data: myIndex } = useSingleLineIndex(currentEntityId, address);
-  const { data: stats } = useSingleLineStats(currentEntityId);
+  const { data: position } = useSingleLinePosition(currentEntityId, address);
+  const { data: overview } = useSingleLineOverview(currentEntityId);
   const { data: queue, isLoading: queueLoading } = useSingleLineQueue(currentEntityId);
-  const { data: payouts, isLoading: payoutsLoading } = useSingleLinePayouts(currentEntityId, address);
-  const { data: memberStats } = useSingleLineMemberStats(currentEntityId, address);
+  const { data: memberView, isLoading: memberViewLoading } = useSingleLineMemberView(currentEntityId, address);
   const { data: coreRecords, isLoading: coreLoading } = useSingleLineCommissionRecords(currentEntityId, address);
 
   const [dirFilter, setDirFilter] = useState<DirectionFilter>('all');
 
   // Plugin payouts — reverse chronological
   const sortedPayouts = useMemo(() => {
-    if (!payouts || !payouts.length) return [];
+    const payouts = memberView?.recentPayouts ?? [];
+    if (!payouts.length) return [];
     const reversed = [...payouts].reverse();
     if (dirFilter === 'all') return reversed;
     return reversed.filter((p) =>
-      dirFilter === 'upline' ? p.direction === 'Upline' : p.direction === 'Downline',
+      dirFilter === 'upline' ? p.direction === 0 : p.direction === 1,
     );
-  }, [payouts, dirFilter]);
+  }, [memberView?.recentPayouts, dirFilter]);
 
   // Core commission records — already sorted newest first from hook, apply filter
   const filteredRecords = useMemo(() => {
@@ -120,7 +119,7 @@ export default function SingleLineEarningsPage() {
     return total.toString();
   }, [filteredRecords]);
 
-  const myPos = myIndex ?? null;
+  const myPos = position?.position ?? null;
 
   const { uplines, downlines } = useMemo(() => {
     if (!queue || !queue.length) return { uplines: [] as { address: string; globalIndex: number }[], downlines: [] as { address: string; globalIndex: number }[] };
@@ -145,8 +144,8 @@ export default function SingleLineEarningsPage() {
         <div className="space-y-4">
           {/* Status */}
           <div className="flex items-center gap-2">
-            <Badge variant={enabled ? 'success' : 'warning'}>
-              {enabled ? t('running') : t('paused')}
+            <Badge variant={overview?.isEnabled ? 'success' : 'warning'}>
+              {overview?.isEnabled ? t('running') : t('paused')}
             </Badge>
             {queue && (
               <Badge variant="secondary">
@@ -167,32 +166,32 @@ export default function SingleLineEarningsPage() {
                 <p className="text-xs text-muted-foreground">{t('myEarnings')}</p>
                 <p className="mt-1 text-2xl font-bold text-success">
                   {formatBalance(
-                    (BigInt(memberStats?.totalEarnedAsUpline || '0') + BigInt(memberStats?.totalEarnedAsDownline || '0')).toString()
+                    (BigInt(memberView?.summary.totalEarnedAsUpline || '0') + BigInt(memberView?.summary.totalEarnedAsDownline || '0')).toString()
                   )}
                   <span className="ml-1 text-sm font-normal text-muted-foreground">NEX</span>
                 </p>
-                {memberStats && memberStats.totalPayoutCount > 0 && (
+                {memberView && memberView.summary.totalPayoutCount > 0 && (
                   <div className="mt-2 grid grid-cols-2 gap-3">
                     <div>
                       <p className="text-xs text-muted-foreground">{t('earnedAsUpline')}</p>
                       <p className="text-lg font-bold text-green-500">
-                        {formatBalance(memberStats.totalEarnedAsUpline)}
+                        {formatBalance(memberView.summary.totalEarnedAsUpline)}
                         <span className="ml-1 text-xs font-normal text-muted-foreground">NEX</span>
                       </p>
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground">{t('earnedAsDownline')}</p>
                       <p className="text-lg font-bold text-blue-500">
-                        {formatBalance(memberStats.totalEarnedAsDownline)}
+                        {formatBalance(memberView.summary.totalEarnedAsDownline)}
                         <span className="ml-1 text-xs font-normal text-muted-foreground">NEX</span>
                       </p>
                     </div>
                   </div>
                 )}
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {memberStats && memberStats.totalPayoutCount > 0
-                    ? t('payoutCount', { count: memberStats.totalPayoutCount })
-                    : t('commissionReceipts', { count: memberStats?.totalPayoutCount ?? 0 })}
+                  {memberView && memberView.summary.totalPayoutCount > 0
+                    ? t('payoutCount', { count: memberView.summary.totalPayoutCount })
+                    : t('commissionReceipts', { count: memberView?.summary.totalPayoutCount ?? 0 })}
                 </p>
               </CardContent>
             </Card>
@@ -303,7 +302,7 @@ export default function SingleLineEarningsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {payoutsLoading ? (
+                {memberViewLoading ? (
                   <div className="space-y-2">
                     <Skeleton className="h-16 w-full" />
                     <Skeleton className="h-16 w-full" />
@@ -314,7 +313,7 @@ export default function SingleLineEarningsPage() {
                 ) : (
                   <div className="space-y-2">
                     {sortedPayouts.map((p, i) => {
-                      const isUpline = p.direction === 'Upline';
+                      const isUpline = p.direction === 0;
                       return (
                         <div key={i} className="flex items-start gap-3 rounded-lg border border-border p-3">
                           <div className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
@@ -475,7 +474,7 @@ export default function SingleLineEarningsPage() {
           )}
 
           {/* Entity stats */}
-          {stats && (
+          {overview && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">{t('stats')}</CardTitle>
@@ -484,15 +483,15 @@ export default function SingleLineEarningsPage() {
                 <div className="grid grid-cols-3 gap-3 text-center text-sm">
                   <div>
                     <p className="text-muted-foreground">{t('totalOrders')}</p>
-                    <p className="text-lg font-semibold">{stats.totalOrders}</p>
+                    <p className="text-lg font-semibold">{overview.stats.totalOrders}</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground">{t('uplinePayouts')}</p>
-                    <p className="text-lg font-semibold">{stats.totalUplinePayouts}</p>
+                    <p className="text-lg font-semibold">{overview.stats.totalUplinePayouts}</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground">{t('downlinePayouts')}</p>
-                    <p className="text-lg font-semibold">{stats.totalDownlinePayouts}</p>
+                    <p className="text-lg font-semibold">{overview.stats.totalDownlinePayouts}</p>
                   </div>
                 </div>
               </CardContent>

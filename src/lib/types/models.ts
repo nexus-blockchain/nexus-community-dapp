@@ -116,7 +116,6 @@ export interface Order {
 export interface EntityMember {
   referrer: string | null;
   directReferrals: number;
-  qualifiedReferrals: number;
   indirectReferrals: number;
   teamSize: number;
   totalSpent: number;
@@ -295,8 +294,13 @@ export interface RoundInfo {
   roundId: number;
   startBlock: number;
   poolSnapshot: string;
+  eligibleCount: number;
+  perMemberReward: string;
+  claimedCount: number;
   levelSnapshots: LevelSnapshot[];
   tokenPoolSnapshot: string | null;
+  tokenPerMemberReward: string | null;
+  tokenClaimedCount: number;
   tokenLevelSnapshots: LevelSnapshot[] | null;
 }
 
@@ -309,7 +313,7 @@ export interface ClaimRecord {
 }
 
 export interface PoolRewardConfig {
-  levelRatios: [number, number][];
+  levelRules: [number, number][];
   roundDuration: number;
   tokenPoolEnabled: boolean;
 }
@@ -336,7 +340,12 @@ export interface CompletedRoundSummary {
   startBlock: number;
   endBlock: number;
   poolSnapshot: string;
+  eligibleCount: number;
+  perMemberReward: string;
+  claimedCount: number;
   tokenPoolSnapshot: string | null;
+  tokenPerMemberReward: string | null;
+  tokenClaimedCount: number;
   levelSnapshots: LevelSnapshot[];
   tokenLevelSnapshots: LevelSnapshot[] | null;
   fundingSummary: RoundFundingSummary;
@@ -355,7 +364,7 @@ export interface PoolFundingRecord {
 export interface PoolRewardMemberView {
   roundDuration: number;
   tokenPoolEnabled: boolean;
-  levelRatios: [number, number][];
+  levelRules: [number, number][];
   currentRoundId: number;
   roundStartBlock: number;
   roundEndBlock: number;
@@ -442,6 +451,63 @@ export interface MarketStats {
   totalOrders: number;
   totalTrades: number;
   totalVolumeNex: string;
+}
+
+// ---------------------------------------------------------------------------
+// Single Line Query API
+// ---------------------------------------------------------------------------
+export interface SingleLinePosition {
+  position: number;
+  previousAccount: string | null;
+  nextAccount: string | null;
+  queueLength: number;
+  uplineLevels: number;
+  downlineLevels: number;
+}
+
+export interface SingleLineStats {
+  isEnabled: boolean;
+  queueLength: number;
+  remainingCapacityInTailSegment: number;
+  segmentCount: number;
+  stats: {
+    totalOrders: number;
+    totalUplinePayouts: number;
+    totalDownlinePayouts: number;
+  };
+}
+
+export interface SingleLineMemberViewData {
+  positionInfo: {
+    position: number;
+    queueLength: number;
+    uplineLevels: number;
+    downlineLevels: number;
+    previousAccount: string | null;
+    nextAccount: string | null;
+  } | null;
+  isEnabled: boolean;
+  summary: {
+    totalEarnedAsUpline: string;
+    totalEarnedAsDownline: string;
+    totalPayoutCount: number;
+    lastPayoutBlock: number;
+  };
+  recentPayouts: Array<{
+    orderId: number;
+    buyer: string;
+    amount: string;
+    direction: number;
+    levelDistance: number;
+    blockNumber: number;
+  }>;
+}
+
+export interface SingleLinePreviewData {
+  beneficiary: string;
+  amount: string;
+  commissionType: string;
+  level: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -779,15 +845,12 @@ export interface MemberDashboardInfo {
   effectiveLevelId: number;
   totalSpent: string;
   directReferrals: number;
-  qualifiedReferrals: number;
   indirectReferrals: number;
-  qualifiedIndirectReferrals: number;
   teamSize: number;
   orderCount: number;
   joinedAt: number;
   lastActiveAt: number;
   activated: boolean;
-  isQualifiedReferral: boolean;
   isBanned: boolean;
   bannedAt: number | null;
   banReason: string | null;

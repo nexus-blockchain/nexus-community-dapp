@@ -76,6 +76,12 @@ export {
 } from './use-nex-global-market';
 export { useNexPrice } from './use-nex-price';
 export {
+  useSingleLineOverview,
+  useSingleLinePosition,
+  useSingleLineMemberView,
+  useSingleLinePreview,
+} from './use-single-line-commission';
+export {
   useSingleLineConfig,
   useSingleLineEnabled,
   useSingleLineIndex,

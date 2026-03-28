@@ -57,6 +57,8 @@ const ERROR_MESSAGES: Record<string, Record<string, string>> = {
     VotingEnded: '投票已结束',
     AlreadyVoted: '已投票',
     QuorumNotReached: '未达法定人数',
+    GovernanceLocked: '治理已锁定',
+    ProposalTypeNotSupported: '当前提案类型暂不支持',
   },
   nexMarket: {
     OrderNotFound: '订单不存在',
@@ -84,6 +86,11 @@ const ERROR_MESSAGES: Record<string, Record<string, string>> = {
     PoolPaused: '奖池已暂停',
     NothingToClaim: '无可领取奖励',
     AlreadyClaimed: '已领取过',
+    RoundExpired: '本轮奖励已过期',
+    NoActiveRound: '当前无可领取轮次',
+    LevelNotEligible: '当前等级不符合本轮奖池领取条件',
+    LevelQuotaExhausted: '当前等级配额已领完',
+    InsufficientPool: '奖池余额不足',
   },
   entityReview: {
     ReviewNotFound: '评价不存在',
