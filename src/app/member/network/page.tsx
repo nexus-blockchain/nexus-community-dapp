@@ -24,6 +24,7 @@ import {
   useReferralsByGeneration,
 } from '@/hooks/use-member-team';
 import { shortAddress, formatUsdt, isTxBusy } from '@/lib/utils/chain-helpers';
+import { TxStatusIndicator } from '@/components/ui/tx-status-indicator';
 import type { ReferralTreeNode, GenerationMemberInfo } from '@/lib/types';
 
 // ─────────────────────────────────────────────
@@ -218,12 +219,7 @@ function InviteTab({ t }: { t: ReturnType<typeof useTranslations> }) {
               {isBusy(registerMember) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
               {t('registerMember')}
             </Button>
-            {registerMember.txState.status === 'finalized' && (
-              <p className="text-sm text-success">{t('registerSuccess')}</p>
-            )}
-            {registerMember.txState.status === 'error' && (
-              <p className="text-sm text-destructive">{registerMember.txState.error}</p>
-            )}
+            <TxStatusIndicator txState={registerMember.txState} successMessage={t('registerSuccess')} />
           </CardContent>
         </Card>
       )}
@@ -269,6 +265,7 @@ function InviteTab({ t }: { t: ReturnType<typeof useTranslations> }) {
               {isBusy(bindReferrer) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               {t('bind')}
             </Button>
+            <TxStatusIndicator txState={bindReferrer.txState} />
           </CardContent>
         </Card>
       )}

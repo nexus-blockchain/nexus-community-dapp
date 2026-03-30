@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
 import { useTranslations, useLocale } from 'next-intl';
 import { MobileHeader } from '@/components/layout/mobile-header';
@@ -8,21 +7,23 @@ import { PageContainer } from '@/components/layout/page-container';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Input } from '@/components/ui/input';
 import {
   ArrowRight, UserPlus, Layers, Trophy,
   Users2, ArrowUpDown, TrendingDown, Wallet,
   CheckCircle2, XCircle, AlertTriangle, Eye,
-  Loader2, ArrowDownToLine, History,
+  Loader2, ArrowDownToLine, History, Clock,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useEntityStore, useWalletStore } from '@/stores';
 import { useCommissionDashboard, useEntityCommissionOverview } from '@/hooks/use-commission-dashboard';
-import { useMemberCommissionStats, useWithdrawCommission, useWithdrawalRecords } from '@/hooks/use-commission-core';
+import { useMemberCommissionStats, useWithdrawCommission, useWithdrawalRecords, useMyShoppingBalanceExpiry, useRepurchaseConfig } from '@/hooks/use-commission-core';
 import { useSingleLineMemberView } from '@/hooks/use-single-line-commission';
-import { formatBalance, bpsToPercent, isTxBusy } from '@/lib/utils/chain-helpers';
+import { formatBalance, bpsToPercent, isTxBusy, formatUsdt } from '@/lib/utils/chain-helpers';
+import { TxStatusIndicator } from '@/components/ui/tx-status-indicator';
 import type { LucideIcon } from 'lucide-react';
 import { HelpTip } from '@/components/ui/help-tip';
+import { useShoppingBalance } from '@/hooks/use-loyalty';
+import { useNexPrice } from '@/hooks/use-nex-price';
 
 // CommissionModes bitmask constants (mirror of Rust CommissionModes)
 const MODES = {
@@ -36,7 +37,7 @@ const MODES = {
   SINGLE_LINE_UPLINE:   0b1000_0000,
   SINGLE_LINE_DOWNLINE: 0b1_0000_0000,
   POOL_REWARD:          0b10_0000_0000,
-  CREATOR_REWARD:       0b100_0000_0000,
+  OWNER_REWARD:       0b100_0000_0000,
 } as const;
 
 interface PluginSummary {
@@ -48,18 +49,6 @@ interface PluginSummary {
   description: string;
   stat?: string;
   stat2?: string;
-}
-
-/** Validate a Substrate SS58 address (basic check) */
-function isValidAddress(addr: string): boolean {
-  if (!addr) return true; // empty is valid (optional)
-  try {
-    const { decodeAddress } = require('@polkadot/util-crypto');
-    decodeAddress(addr);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 export default function EarningsPage() {
@@ -77,12 +66,21 @@ export default function EarningsPage() {
   const withdraw = useWithdrawCommission();
   const withdrawBusy = isTxBusy(withdraw.txState);
 
-  // Repurchase recipient input
-  const [repurchaseAccount, setRepurchaseAccount] = useState('');
-  const [addressError, setAddressError] = useState(false);
-
   // Withdrawal history from chain
   const { data: withdrawalRecords } = useWithdrawalRecords(currentEntityId, address);
+
+  // 购物余额到期状态
+  const { data: expiryStatus } = useMyShoppingBalanceExpiry(currentEntityId, address);
+
+  // 购物余额阈值检查
+  const { data: repurchaseConfig } = useRepurchaseConfig(currentEntityId);
+  const { data: shoppingBal } = useShoppingBalance(currentEntityId, address);
+  const { toUsdt: nexToUsdt } = useNexPrice();
+  const shoppingBalUsdt = shoppingBal && nexToUsdt ? nexToUsdt(shoppingBal) : null;
+  const thresholdUsdt = repurchaseConfig?.maxShoppingBalanceUsdt ?? '0';
+  const shoppingExceedsThreshold = BigInt(thresholdUsdt) > BigInt(0)
+    && shoppingBalUsdt != null
+    && BigInt(shoppingBalUsdt) > BigInt(thresholdUsdt);
 
   const isLoading = dashLoading || statsLoading || overviewLoading;
 
@@ -97,17 +95,10 @@ export default function EarningsPage() {
   const orderCount = memberStats?.orderCount ?? dashboard?.nexStats.orderCount ?? 0;
 
   const handleWithdraw = () => {
-    const recipient = repurchaseAccount.trim();
-    if (recipient && !isValidAddress(recipient)) {
-      setAddressError(true);
-      return;
-    }
-    setAddressError(false);
     withdraw.mutate([
       currentEntityId,
       pending,
       null,
-      recipient || null,
     ]);
   };
 
@@ -218,14 +209,14 @@ export default function EarningsPage() {
     });
   }
 
-  if ((modes & MODES.CREATOR_REWARD) > 0) {
+  if ((modes & MODES.OWNER_REWARD) > 0) {
     plugins.push({
-      key: 'creatorReward',
-      label: t('creatorReward'),
+      key: 'ownerReward',
+      label: t('ownerReward'),
       icon: Wallet,
       href: null,
       status: 'enabled',
-      description: t('creatorRewardDesc'),
+      description: t('ownerRewardDesc'),
     });
   }
 
@@ -292,29 +283,26 @@ export default function EarningsPage() {
                   {/* Withdrawal section */}
                   {address && (
                     <div className="mt-4 space-y-2">
-                      {/* Repurchase recipient input */}
-                      <div>
-                        <label className="text-xs text-muted-foreground">{isZh ? '回购接收账户' : 'Repurchase Recipient'}</label>
-                        <Input
-                          className="mt-1 h-8 text-xs font-mono"
-                          placeholder={isZh ? '输入接收回购金额的地址（可选）' : 'Enter address to receive repurchase amount (optional)'}
-                          value={repurchaseAccount}
-                          onChange={(e) => {
-                            setRepurchaseAccount(e.target.value);
-                            setAddressError(false);
-                          }}
-                        />
-                        {addressError && (
-                          <p className="mt-0.5 text-xs text-destructive">{t('invalidAddress')}</p>
-                        )}
-                        <p className="mt-0.5 text-[10px] text-muted-foreground">{isZh ? '留空则回购金额转入购物余额' : 'Leave empty to credit shopping balance'}</p>
-                      </div>
+                      {/* Shopping balance threshold warning */}
+                      {shoppingExceedsThreshold && (
+                        <div className="rounded-md bg-destructive/10 p-2 text-xs text-destructive">
+                          <div className="flex items-center gap-1.5">
+                            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                            <span>{t('shoppingBalanceExceedsThreshold')}</span>
+                          </div>
+                          <p className="mt-1 text-[10px] text-destructive/80">
+                            {isZh
+                              ? `当前购物余额 ≈ ${formatUsdt(shoppingBalUsdt!)} USDT，阈值 ${formatUsdt(thresholdUsdt)} USDT`
+                              : `Balance ≈ ${formatUsdt(shoppingBalUsdt!)} USDT, threshold ${formatUsdt(thresholdUsdt)} USDT`}
+                          </p>
+                        </div>
+                      )}
 
                       {/* Withdraw button */}
                       <Button
                         className="w-full gap-1.5 text-sm font-bold"
                         variant="default"
-                        disabled={withdrawBusy || overview?.withdrawalPaused || BigInt(pending || '0') <= BigInt(0)}
+                        disabled={withdrawBusy || overview?.withdrawalPaused || BigInt(pending || '0') <= BigInt(0) || shoppingExceedsThreshold}
                         onClick={handleWithdraw}
                       >
                         {withdrawBusy ? (
@@ -328,12 +316,7 @@ export default function EarningsPage() {
                   )}
 
                   {/* Withdraw tx status */}
-                  {withdraw.txState.status === 'finalized' && (
-                    <p className="mt-2 text-xs text-success">{t('withdrawSuccess')}</p>
-                  )}
-                  {withdraw.txState.status === 'error' && (
-                    <p className="mt-2 text-xs text-destructive">{withdraw.txState.error}</p>
-                  )}
+                  <TxStatusIndicator txState={withdraw.txState} successMessage={t('withdrawSuccess')} />
                 </>
               )}
             </CardContent>
@@ -381,6 +364,69 @@ export default function EarningsPage() {
                     </div>
                   )}
                 </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* 购物余额到期提示 */}
+          {!isLoading && commissionActive && address && expiryStatus && expiryStatus.status !== 'no_ttl' && expiryStatus.status !== 'not_credited' && (
+            <Card className={
+              expiryStatus.status === 'expired'
+                ? 'border-destructive/60 bg-destructive/5'
+                : expiryStatus.status === 'expiring_soon'
+                  ? 'border-amber-400/60 bg-amber-50/30 dark:bg-amber-900/10'
+                  : 'border-border'
+            }>
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-2">
+                  <Clock className={`h-4 w-4 ${expiryStatus.status === 'expired' ? 'text-destructive' : expiryStatus.status === 'expiring_soon' ? 'text-amber-500' : 'text-muted-foreground'}`} />
+                  <CardTitle className="text-sm">
+                    {isZh ? '购物余额有效期' : 'Shopping Balance Expiry'}
+                  </CardTitle>
+                  {expiryStatus.status === 'expired' && (
+                    <Badge variant="destructive" className="text-[10px]">
+                      {isZh ? '已过期' : 'Expired'}
+                    </Badge>
+                  )}
+                  {expiryStatus.status === 'expiring_soon' && (
+                    <Badge variant="warning" className="text-[10px]">
+                      {isZh ? '即将到期' : 'Expiring Soon'}
+                    </Badge>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-1.5 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">{isZh ? '最后入账区块' : 'Last Credited Block'}</span>
+                  <span className="font-mono">#{expiryStatus.lastCredited}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">{isZh ? '到期区块' : 'Expires At Block'}</span>
+                  <span className="font-mono">#{expiryStatus.expireAtBlock}</span>
+                </div>
+                {expiryStatus.blocksLeft !== null && expiryStatus.blocksLeft > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">{isZh ? '剩余' : 'Remaining'}</span>
+                    <span className="font-medium">
+                      {expiryStatus.blocksLeft} blocks
+                      {' '}(≈{(expiryStatus.blocksLeft * 6 / 86400).toFixed(1)} {isZh ? '天' : 'd'})
+                    </span>
+                  </div>
+                )}
+                {expiryStatus.status === 'expired' && (
+                  <p className="mt-1 rounded bg-destructive/10 p-2 text-destructive">
+                    {isZh
+                      ? '您的购物余额已超过有效期，可能被 Entity 没收。请尽快使用购物余额下单。'
+                      : 'Your shopping balance has expired and may be forfeited. Please place an order to use it.'}
+                  </p>
+                )}
+                {expiryStatus.status === 'expiring_soon' && (
+                  <p className="mt-1 rounded bg-amber-50 p-2 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400">
+                    {isZh
+                      ? '购物余额即将到期，请在 1 天内使用或提现。'
+                      : 'Shopping balance expires within 1 day. Use it or withdraw soon.'}
+                  </p>
+                )}
               </CardContent>
             </Card>
           )}

@@ -5,7 +5,6 @@ export interface WithdrawalRecord {
   address: string;
   entityId: number;
   amount: string;       // raw bigint string
-  repurchaseAccount: string | null;
   hash: string;
   timestamp: number;
 }

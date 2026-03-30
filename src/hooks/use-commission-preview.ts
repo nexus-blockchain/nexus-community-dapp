@@ -19,10 +19,11 @@ export function useCommissionCoreConfig(entityId: number | null) {
       const raw = await (api.query as any).commissionCore.commissionConfigs(entityId);
       if (raw.isNone) return null;
       const data = raw.unwrap().toJSON();
+      console.log('[CommissionCoreConfig] raw toJSON:', JSON.stringify(data));
       const caps = data.pluginCaps ?? data.plugin_caps ?? {};
       return {
         maxCommissionRate: data.maxCommissionRate ?? data.max_commission_rate ?? 0,
-        creatorRewardRate: data.creatorRewardRate ?? data.creator_reward_rate ?? 0,
+        ownerRewardRate: data.ownerRewardRate ?? data.owner_reward_rate ?? 0,
         pluginCaps: {
           referral: caps.referral ?? 0,
           multiLevel: caps.multiLevel ?? caps.multi_level ?? 0,

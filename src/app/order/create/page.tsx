@@ -47,6 +47,7 @@ function OrderCreateContent() {
   const { data: shop } = useShop(product?.shopId ?? null);
   const shopEntityId = shop?.entityId ?? null;
   const { data: memberInfo } = useMember(shopEntityId, address);
+  const isOwnProduct = !!address && !!shop?.managers?.includes(address);
   const isMembersOnly = product?.visibility === 'MembersOnly';
   const isLevelGated = product?.visibility?.startsWith?.('LevelGated') || false;
   const isMember = !!memberInfo;
@@ -121,7 +122,6 @@ function OrderCreateContent() {
       paymentAsset === 'EntityToken'       // use_tokens: Option<Balance>
         ? totalNex.toString() : null,
       shoppingBalSpend,                    // use_shopping_balance: Option<Balance>
-      null,                                // payment_asset
       note || null,                        // note_cid
       referrer || null,                    // referrer
       null,                                // max_nex_amount (no slippage limit)
@@ -362,6 +362,17 @@ function OrderCreateContent() {
         </Card>
       )}
 
+      {isOwnProduct && (
+        <Card className="border-destructive">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="h-5 w-5 text-destructive" />
+              <p className="text-sm text-destructive">{t('cannotBuyOwnProduct')}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {needsAutoRegister && (
         <Card className="border-warning">
           <CardContent className="p-4">
@@ -377,7 +388,7 @@ function OrderCreateContent() {
         className="w-full"
         size="lg"
         onClick={handleSubmit}
-        disabled={isBusy || !address || txState.status === 'finalized' || !!referrerError}
+        disabled={isBusy || !address || txState.status === 'finalized' || !!referrerError || isOwnProduct}
       >
         {isBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
         {!address ? t('connectFirst') : isBusy ? t('processing') : t('confirmOrder')}

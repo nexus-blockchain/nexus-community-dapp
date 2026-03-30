@@ -31,7 +31,7 @@ const MODES = {
   SINGLE_LINE_UPLINE:   0b1000_0000,
   SINGLE_LINE_DOWNLINE: 0b1_0000_0000,
   POOL_REWARD:          0b10_0000_0000,
-  CREATOR_REWARD:       0b100_0000_0000,
+  OWNER_REWARD:       0b100_0000_0000,
 } as const;
 
 // ─── Accordion Item ───
@@ -138,9 +138,9 @@ export default function CommissionPreviewPage() {
     // all rates are in bps (10000 = 100%)
     const amountRaw = orderAmount * 1_000_000; // convert to raw USDT (6 decimals)
     const poolB = (amountRaw * effectiveRate) / 10000;
-    const creatorRate = coreConfig?.creatorRewardRate ?? 0;
-    const creatorReward = (poolB * creatorRate) / 10000;
-    const remaining = poolB - creatorReward;
+    const ownerRate = coreConfig?.ownerRewardRate ?? 0;
+    const ownerReward = (amountRaw * ownerRate) / 10000;
+    const remaining = poolB - ownerReward;
     const caps = coreConfig?.pluginCaps;
 
     const pluginBudget = (pluginName: keyof NonNullable<typeof caps>) => {
@@ -153,7 +153,7 @@ export default function CommissionPreviewPage() {
 
     return {
       poolB,
-      creatorReward,
+      ownerReward,
       remaining,
       referralBudget: pluginBudget('referral'),
       multiLevelBudget: pluginBudget('multiLevel'),
@@ -169,11 +169,11 @@ export default function CommissionPreviewPage() {
   const hasLevelDiff = (modes & MODES.LEVEL_DIFF) > 0;
   const hasSingleLine = (modes & (MODES.SINGLE_LINE_UPLINE | MODES.SINGLE_LINE_DOWNLINE)) > 0;
   const hasTeam = (modes & MODES.TEAM_PERFORMANCE) > 0;
-  const hasCreator = (modes & MODES.CREATOR_REWARD) > 0;
+  const hasOwnerReward = (modes & MODES.OWNER_REWARD) > 0;
 
   // Budget distribution data
   const budgetItems = [
-    ...(hasCreator ? [{ label: t('creatorReward'), value: calc.creatorReward, color: 'bg-amber-500' }] : []),
+    ...(hasOwnerReward ? [{ label: t('ownerReward'), value: calc.ownerReward, color: 'bg-amber-500' }] : []),
     ...(hasReferral ? [{ label: t('referral'), value: calc.referralBudget, color: 'bg-blue-500' }] : []),
     ...(hasMultiLevel ? [{ label: t('multiLevel'), value: calc.multiLevelBudget, color: 'bg-green-500' }] : []),
     ...(hasLevelDiff ? [{ label: t('levelDiff'), value: calc.levelDiffBudget, color: 'bg-purple-500' }] : []),
@@ -234,10 +234,10 @@ export default function CommissionPreviewPage() {
                       <p className="text-muted-foreground">{t('poolBTotal')}</p>
                       <p className="text-lg font-bold">${formatUsdt(calc.poolB)}</p>
                     </div>
-                    {hasCreator && (
+                    {hasOwnerReward && (
                       <div>
-                        <p className="text-muted-foreground">{t('creatorReward')}</p>
-                        <p className="font-semibold">${formatUsdt(calc.creatorReward)}</p>
+                        <p className="text-muted-foreground">{t('ownerReward')}</p>
+                        <p className="font-semibold">${formatUsdt(calc.ownerReward)}</p>
                       </div>
                     )}
                     <div>
@@ -304,6 +304,8 @@ export default function CommissionPreviewPage() {
                               <th className="pb-1 text-right font-medium">{t('rate')}</th>
                               <th className="pb-1 text-right font-medium">{t('directRequired')}</th>
                               <th className="pb-1 text-right font-medium">{t('teamRequired')}</th>
+                              <th className="pb-1 text-right font-medium">{t('spentRequired')}</th>
+                              <th className="pb-1 text-right font-medium">{t('levelReq')}</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -313,13 +315,14 @@ export default function CommissionPreviewPage() {
                                 <td className="py-1 text-right font-medium">{bpsToPercent(tier.rate)}</td>
                                 <td className="py-1 text-right">{tier.requiredDirects}</td>
                                 <td className="py-1 text-right">{tier.requiredTeamSize}</td>
+                                <td className="py-1 text-right">{tier.requiredSpent !== '0' ? formatUsdt(tier.requiredSpent) : '-'}</td>
+                                <td className="py-1 text-right">{tier.requiredLevelId > 0 ? tier.requiredLevelId : '-'}</td>
                               </tr>
                             ))}
                           </tbody>
                         </table>
                       </div>
                       <MiniTable rows={[
-                        [t('maxTotalRate'), bpsToPercent(multiLevelConfig.maxTotalRate)],
                         [t('budgetCapBps'), coreConfig?.pluginCaps.multiLevel ? bpsToPercent(coreConfig.pluginCaps.multiLevel) : t('noCap')],
                       ]} />
                     </div>

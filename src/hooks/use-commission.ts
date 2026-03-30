@@ -200,7 +200,7 @@ function parseCommissionType(ct: any): CommissionRecord['commissionType'] {
     if (s.includes('repeatpurchase')) return 'RepeatPurchase';
     if (s.includes('entityreferral')) return 'EntityReferral';
     if (s.includes('poolreward')) return 'PoolReward';
-    if (s.includes('creatorreward')) return 'CreatorReward';
+    if (s.includes('ownerreward')) return 'OwnerReward';
     return ct as CommissionRecord['commissionType'];
   }
   if (ct && typeof ct === 'object') {
@@ -615,10 +615,40 @@ export function usePoolRewardMemberView(entityId: number | null, address: string
         .getPoolRewardMemberView(entityId, address);
       if (raw.isNone) return null;
       const d = raw.unwrap().toJSON();
+      const parseCapBehavior = (raw: any) => {
+        if (!raw) return { type: 'Fixed' as const };
+        if (typeof raw === 'string') {
+          return raw.toLowerCase().includes('fixed')
+            ? { type: 'Fixed' as const }
+            : { type: 'Fixed' as const };
+        }
+        if (raw.fixed !== undefined || raw.Fixed !== undefined) {
+          return { type: 'Fixed' as const };
+        }
+        const unlock = raw.unlockByTeam ?? raw.unlock_by_team ?? raw.UnlockByTeam;
+        if (unlock) {
+          return {
+            type: 'UnlockByTeam' as const,
+            directPerUnlock: unlock.directPerUnlock ?? unlock.direct_per_unlock ?? 0,
+            teamPerUnlock: unlock.teamPerUnlock ?? unlock.team_per_unlock ?? 0,
+            unlockPercent: unlock.unlockPercent ?? unlock.unlock_percent ?? 0,
+          };
+        }
+        return { type: 'Fixed' as const };
+      };
+
+      const parseU128String = (value: any) => String(value ?? '0');
+      const cap = d.capInfo ?? d.cap_info ?? {};
+      const memberStats = d.memberStats ?? d.member_stats ?? {};
       return {
         roundDuration: d.roundDuration ?? d.round_duration ?? 0,
         tokenPoolEnabled: d.tokenPoolEnabled ?? d.token_pool_enabled ?? false,
         levelRules: parsePoolRewardLevelRules(d),
+        levelRuleDetails: (d.levelRuleDetails ?? d.level_rule_details ?? []).map((r: any) => ({
+          levelId: r.levelId ?? r.level_id ?? 0,
+          baseCapPercent: r.baseCapPercent ?? r.base_cap_percent ?? 0,
+          capBehavior: parseCapBehavior(r.capBehavior ?? r.cap_behavior),
+        })),
         currentRoundId: d.currentRoundId ?? d.current_round_id ?? 0,
         roundStartBlock: d.roundStartBlock ?? d.round_start_block ?? 0,
         roundEndBlock: d.roundEndBlock ?? d.round_end_block ?? 0,
@@ -630,6 +660,31 @@ export function usePoolRewardMemberView(entityId: number | null, address: string
         alreadyClaimed: d.alreadyClaimed ?? d.already_claimed ?? false,
         roundExpired: d.roundExpired ?? d.round_expired ?? false,
         lastClaimedRound: d.lastClaimedRound ?? d.last_claimed_round ?? 0,
+        memberStats: {
+          directCount: memberStats.directCount ?? memberStats.direct_count ?? 0,
+          teamCount: memberStats.teamCount ?? memberStats.team_count ?? 0,
+          totalSpent: parseU128String(memberStats.totalSpent ?? memberStats.total_spent ?? '0'),
+        },
+        capInfo: {
+          cumulativeClaimedUsdt: parseU128String(cap.cumulativeClaimedUsdt ?? cap.cumulative_claimed_usdt ?? '0'),
+          currentCapUsdt: parseU128String(cap.currentCapUsdt ?? cap.current_cap_usdt ?? '0'),
+          remainingCapUsdt: parseU128String(cap.remainingCapUsdt ?? cap.remaining_cap_usdt ?? '0'),
+          isCapped: cap.isCapped ?? cap.is_capped ?? false,
+          quotaNexBeforeCap: String(cap.quotaNexBeforeCap ?? cap.quota_nex_before_cap ?? '0'),
+          rateSnapshotUsed: cap.rateSnapshotUsed ?? cap.rate_snapshot_used ?? null,
+          baseCapPercent: cap.baseCapPercent ?? cap.base_cap_percent ?? 0,
+          baseCapUsdt: parseU128String(cap.baseCapUsdt ?? cap.base_cap_usdt ?? '0'),
+          unlockCount: cap.unlockCount ?? cap.unlock_count ?? 0,
+          unlockPercent: cap.unlockPercent ?? cap.unlock_percent ?? null,
+          unlockAmountPerStepUsdt: cap.unlockAmountPerStepUsdt != null || cap.unlock_amount_per_step_usdt != null
+            ? parseU128String(cap.unlockAmountPerStepUsdt ?? cap.unlock_amount_per_step_usdt)
+            : null,
+          nextDirectGap: cap.nextDirectGap ?? cap.next_direct_gap ?? null,
+          nextTeamGap: cap.nextTeamGap ?? cap.next_team_gap ?? null,
+          nextUnlockIncreaseUsdt: cap.nextUnlockIncreaseUsdt != null || cap.next_unlock_increase_usdt != null
+            ? parseU128String(cap.nextUnlockIncreaseUsdt ?? cap.next_unlock_increase_usdt)
+            : null,
+        },
         levelProgress: (d.levelProgress ?? d.level_progress ?? []).map((p: any) => ({
           levelId: p.levelId ?? p.level_id ?? 0,
           ratioBps: p.ratioBps ?? p.ratio_bps ?? 0,

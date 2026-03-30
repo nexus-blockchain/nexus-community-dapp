@@ -20,7 +20,7 @@ import {
   PricePanel, StatsBar, OrderBook, TradeForm,
   PriceChart, MyOrders, TradeHistory,
   NexPricePanel, NexOrderBook, NexTradeForm, NexFirstOrderBanner,
-  NexOrderList, NexActiveTrades, NexMyOrders, NexTradeHistory,
+  NexOrderList, NexActiveTrades, NexTradeHistory,
 } from '@/features/market';
 import type { OrderActionPrefill } from '@/features/market';
 import type { NexMarketOrder } from '@/lib/types';
@@ -120,8 +120,9 @@ export default function MarketPage() {
                 isActive={firstOrderStatus.isActive}
                 activeTradeId={firstOrderStatus.activeTradeId ?? null}
               />
-              <NexActiveTrades trades={nexUserTrades} address={address} />
-              <NexMyOrders
+              <NexActiveTrades
+                trades={nexUserTrades}
+                address={address}
                 orders={nexUserOrders}
                 onCancelOrder={handleNexCancelOrder}
                 cancelLoading={isTxBusy(nexCancelOrder.txState)}
@@ -139,16 +140,11 @@ export default function MarketPage() {
                 isLoading={nexBookLoading}
               />
               <NexOrderList
-                side="Buy"
-                orders={nexOrderBookData?.buyOrders ?? []}
+                buyOrders={nexOrderBookData?.buyOrders ?? []}
+                sellOrders={nexOrderBookData?.sellOrders ?? []}
                 isLoading={nexBookLoading}
-                onAction={handleAcceptBuyOrder}
-              />
-              <NexOrderList
-                side="Sell"
-                orders={nexOrderBookData?.sellOrders ?? []}
-                isLoading={nexBookLoading}
-                onAction={handleReserveSellOrder}
+                onBuyAction={handleAcceptBuyOrder}
+                onSellAction={handleReserveSellOrder}
               />
               <NexTradeForm prefill={orderPrefill} onPrefillUsed={handlePrefillUsed} />
               <NexTradeHistory trades={nexUserTrades} address={address} />

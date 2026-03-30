@@ -51,7 +51,7 @@ export function useLocalWallet() {
 
   /** Import a wallet from an existing mnemonic */
   const importWallet = useCallback(
-    async (mnemonic: string, name: string, password: string): Promise<{ address: string }> => {
+    async (mnemonic: string, name: string, password: string): Promise<{ address: string; duplicate: boolean }> => {
       await cryptoWaitReady();
       hydrate();
 
@@ -67,11 +67,11 @@ export function useLocalWallet() {
       const keyring = getKeyring();
       const pair = keyring.addFromMnemonic(trimmed, { name }, 'sr25519');
 
-      // Check for duplicate address before saving
+      // Check for duplicate address — return existing instead of throwing
       const existingAccounts = useLocalAccountsStore.getState().accounts;
       if (existingAccounts.some((a) => a.address === pair.address)) {
         pair.lock();
-        throw new Error('DUPLICATE_ACCOUNT');
+        return { address: pair.address, duplicate: true };
       }
 
       const json = pair.toJson(password);
@@ -88,7 +88,7 @@ export function useLocalWallet() {
 
       pair.lock();
 
-      return { address: pair.address };
+      return { address: pair.address, duplicate: false };
     },
     [addAccount, hydrate],
   );

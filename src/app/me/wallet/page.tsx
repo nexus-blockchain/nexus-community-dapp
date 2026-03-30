@@ -27,10 +27,11 @@ import { useLocalWallet } from '@/hooks/use-local-wallet';
 import { useNexBalance } from '@/hooks/use-nex-balance';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useQueryClient } from '@tanstack/react-query';
-import { formatBalance, shortAddress } from '@/lib/utils/chain-helpers';
+import { formatBalance, shortAddress, formatUsdt } from '@/lib/utils/chain-helpers';
 import { validatePassword } from '@/lib/utils/password-validation';
 import { TransferDialog, ReceiveDialog } from '@/components/wallet/wallet-dialogs';
 import { useTokenBalance, useTokenMetadata, useTokenConfig } from '@/hooks/use-token';
+import { useNexPrice } from '@/hooks/use-nex-price';
 
 // ─────────────────────────────────────────────
 // Create Wallet Dialog
@@ -292,11 +293,7 @@ function ImportWalletDialog({
       onImported(result.address); handleOpenChange(false);
     } catch (e) {
       console.error('[wallet-import] failed:', e);
-      if (e instanceof Error && e.message === 'DUPLICATE_ACCOUNT') {
-        setError(t('duplicateAccount'));
-      } else {
-        setError(t('importFailed'));
-      }
+      setError(t('importFailed'));
     } finally { setImporting(false); }
   };
 
@@ -613,6 +610,9 @@ export default function WalletPage() {
   const reservedBalance = nexBalance?.reserved ?? BigInt(0);
   const totalBalance = freeBalance + reservedBalance;
 
+  const { toUsdt } = useNexPrice();
+  const totalUsdt = totalBalance > BigInt(0) ? toUsdt(totalBalance) : null;
+
   // Entity token queries
   const { data: tokenConfig } = useTokenConfig(currentEntityId);
   const { data: tokenMeta } = useTokenMetadata(currentEntityId);
@@ -711,6 +711,9 @@ export default function WalletPage() {
                 {/* Balance */}
                 <div className="relative mt-2 mb-4 space-y-1">
                   <p className="text-2xl font-bold tracking-tight">{formatBalance(totalBalance.toString())} <span className="text-base font-normal opacity-80">NEX</span></p>
+                  {totalUsdt && (
+                    <p className="text-sm opacity-70">≈ ${formatUsdt(totalUsdt)} USDT</p>
+                  )}
                   <div className="flex items-center gap-4 text-xs opacity-80">
                     <span>{t('wallet.freeBalance')}: {formatBalance(freeBalance.toString())}</span>
                     <span>{t('wallet.reservedBalance')}: {formatBalance(reservedBalance.toString())}</span>

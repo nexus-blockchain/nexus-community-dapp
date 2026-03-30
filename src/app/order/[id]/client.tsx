@@ -23,26 +23,7 @@ import { useIpfsContent } from '@/hooks/use-ipfs-content';
 import { useNexPrice } from '@/hooks/use-nex-price';
 import { useWalletStore } from '@/stores';
 import { formatBalance, formatUsdt, shortAddress, isTxBusy } from '@/lib/utils/chain-helpers';
-
-function TxStatusBar({ txState }: { txState: any }) {
-  const tTx = useTranslations('tx');
-  if (txState.status === 'idle') return null;
-  const isBusy = isTxBusy(txState);
-  return (
-    <div className="flex items-center gap-2 rounded-lg bg-secondary p-3 text-sm">
-      {isBusy && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
-      {txState.status === 'finalized' && <Check className="h-4 w-4 text-success" />}
-      {txState.status === 'error' && <AlertCircle className="h-4 w-4 text-destructive" />}
-      <span>
-        {txState.status === 'signing' && tTx('signing')}
-        {txState.status === 'broadcasting' && tTx('broadcasting')}
-        {txState.status === 'inBlock' && tTx('inBlockWaiting')}
-        {txState.status === 'finalized' && tTx('success')}
-        {txState.status === 'error' && (txState.error || tTx('operationFailed'))}
-      </span>
-    </div>
-  );
-}
+import { TxStatusIndicator } from '@/components/ui/tx-status-indicator';
 
 export default function OrderDetailClient({ params }: { params: { id: string } }) {
   const t = useTranslations('order');
@@ -230,7 +211,7 @@ export default function OrderDetailClient({ params }: { params: { id: string } }
             </Card>
 
             {/* Tx status */}
-            {activeTx && <TxStatusBar txState={activeTx.txState} />}
+            {activeTx && <TxStatusIndicator txState={activeTx.txState} />}
 
             {/* Actions */}
             <Card>

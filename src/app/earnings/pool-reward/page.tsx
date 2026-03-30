@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-  Trophy, Loader2, Check, AlertCircle, Clock, BarChart3,
+  Trophy, Loader2, Clock, BarChart3,
   Wallet, Gift, History, ChevronDown, ChevronUp, Coins, ArrowDownToLine,
 } from 'lucide-react';
 import { HelpTip } from '@/components/ui/help-tip';
@@ -23,7 +23,8 @@ import {
 import { useLevelSystem } from '@/hooks/use-member';
 import { useCurrentBlock } from '@/hooks/use-current-block';
 import { formatBalance, bpsToPercent, isTxBusy } from '@/lib/utils/chain-helpers';
-import type { LevelSnapshot, CompletedRoundSummary, PoolFundingRecord, LevelProgressInfo } from '@/lib/types';
+import { TxStatusIndicator } from '@/components/ui/tx-status-indicator';
+import type { LevelSnapshot, CompletedRoundSummary, PoolFundingRecord, LevelProgressInfo, PoolRewardMemberView } from '@/lib/types';
 
 export default function PoolRewardPage() {
   const t = useTranslations('poolReward');
@@ -41,6 +42,7 @@ export default function PoolRewardPage() {
   const { data: levelSystem } = useLevelSystem(currentEntityId);
   const currentBlock = useCurrentBlock();
   const claim = useClaimPoolReward();
+  const isBusy = isTxBusy(claim.txState);
 
   // New data sources
   const { data: roundHistory } = useRoundHistory(currentEntityId);
@@ -74,7 +76,10 @@ export default function PoolRewardPage() {
     && !memberView.roundExpired
     && memberView.currentRoundId > 0
     && BigInt(claimableNex) === BigInt(0);
-  const isBusy = isTxBusy(claim.txState);
+  const effectivePerMemberReward = memberView?.levelProgress.find((p) => p.levelId === effectiveLevel)?.perMemberReward
+    ?? round?.perMemberReward
+    ?? '0';
+  const capLimitedRewardNex = memberView?.capInfo.quotaNexBeforeCap ?? '0';
 
   // Calculate end block and remaining
   const endBlock = activeRound?.endBlock ?? (round && config ? round.startBlock + config.roundDuration : 0);
@@ -213,15 +218,20 @@ export default function PoolRewardPage() {
                   {isExactLevelIneligible && (
                     <p className="text-xs text-muted-foreground">{t('eligibilityHint')}</p>
                   )}
-                  {claim.txState.status === 'finalized' && (
-                    <div className="flex items-center gap-2 text-sm text-success">
-                      <Check className="h-4 w-4" /> {t('claimSuccess')}
-                    </div>
+                  <TxStatusIndicator txState={claim.txState} successMessage={t('claimSuccess')} />
+                  {/* Cap progress bar */}
+                  {memberView && (
+                    <CapProgressBar memberView={memberView} t={t} />
                   )}
-                  {claim.txState.status === 'error' && (
-                    <div className="flex items-center gap-2 text-sm text-destructive">
-                      <AlertCircle className="h-4 w-4" /> {claim.txState.error}
-                    </div>
+                  {/* Audit breakdown */}
+                  {memberView && (
+                    <AuditBreakdownCard
+                      memberView={memberView}
+                      effectivePerMemberReward={effectivePerMemberReward}
+                      capLimitedRewardNex={capLimitedRewardNex}
+                      currentPoolBalance={poolBalance ?? '0'}
+                      t={t}
+                    />
                   )}
 
                   {/* Claim history */}
@@ -275,7 +285,8 @@ export default function PoolRewardPage() {
                   <MetricCell label={t('endBlock')} value={endBlock ? `#${endBlock}` : '-'} helpKey="poolReward.endBlock" />
                   <MetricCell
                     label={t('remainingBlocks')}
-                    value={activeRound || round ? String(remaining) : '-'}
+                    value={activeRound || round ? `${remaining}` : '-'}
+                    subValue={remaining > 0 ? formatBlocksToTime(remaining, t) : undefined}
                     highlight={remaining > 0 && remaining < 100}
                     helpKey="poolReward.remainingBlocks"
                   />
@@ -303,6 +314,14 @@ export default function PoolRewardPage() {
                   <div className="rounded-lg border bg-muted/50 p-3">
                     <p className="text-xs text-muted-foreground flex items-center gap-1">{t('tokenPoolSnapshot')} <HelpTip helpKey="poolReward.tokenPoolSnapshot" iconSize={12} /></p>
                     <p className="text-xl font-bold">{formatBalance(round.tokenPoolSnapshot)} Token</p>
+                  </div>
+                )}
+
+                {/* Current round funding summary */}
+                {memberView?.capInfo.rateSnapshotUsed && (
+                  <div className="rounded-lg border p-3">
+                    <p className="text-xs text-muted-foreground">{t('rateSnapshot')}</p>
+                    <p className="text-lg font-semibold">{memberView.capInfo.rateSnapshotUsed} USDT / NEX</p>
                   </div>
                 )}
 
@@ -488,7 +507,35 @@ export default function PoolRewardPage() {
                     </Badge>
                   </div>
 
-                  {/* Level ratios */}
+                  {/* Level rules semantics */}
+                  {memberView?.levelRuleDetails.length ? (
+                    <div>
+                      <p className="mb-2 text-sm text-muted-foreground">{t('levelCapRules')}</p>
+                      <div className="space-y-1">
+                        {memberView.levelRuleDetails.map((rule) => (
+                          <div key={rule.levelId} className="rounded-lg bg-secondary p-2 text-sm">
+                            <div className="flex items-center justify-between gap-2">
+                              <span>
+                                Lv{rule.levelId}
+                                {levelNameById[rule.levelId] ? ` ${levelNameById[rule.levelId]}` : ''}
+                              </span>
+                              <Badge variant="outline">{bpsToPercent(rule.baseCapPercent)}</Badge>
+                            </div>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {rule.capBehavior.type === 'Fixed'
+                                ? t('fixedCapRule')
+                                : t('unlockRuleValue', {
+                                    direct: rule.capBehavior.directPerUnlock,
+                                    team: rule.capBehavior.teamPerUnlock,
+                                    percent: bpsToPercent(rule.capBehavior.unlockPercent),
+                                  })}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                  /* Level ratios */
                   <div>
                     <p className="mb-2 text-sm text-muted-foreground flex items-center gap-1">{t('levelRatios')} <HelpTip helpKey="poolReward.levelRatios" iconSize={12} /></p>
                     <div className="space-y-1">
@@ -503,6 +550,7 @@ export default function PoolRewardPage() {
                       ))}
                     </div>
                   </div>
+                  )}
 
                   {/* Round duration */}
                   <div className="flex items-center justify-between text-sm">
@@ -529,14 +577,148 @@ export default function PoolRewardPage() {
 
 // ─── Sub Components ──────────────────────────────────────────
 
+/** Convert remaining blocks to approximate human-readable time (6s per block) */
+function formatBlocksToTime(
+  blocks: number,
+  t: (key: string, values?: Record<string, string | number>) => string,
+): string {
+  const totalSeconds = blocks * 6;
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  if (hours > 0) return t('timeRemaining', { hours, minutes });
+  return t('timeRemainingMinutes', { minutes: Math.max(1, minutes) });
+}
+
+/** Cap progress bar: cumulative claimed / cap with visual fill */
+function CapProgressBar({
+  memberView,
+  t,
+}: {
+  memberView: PoolRewardMemberView;
+  t: (key: string, values?: Record<string, string | number>) => string;
+}) {
+  const cap = memberView.capInfo;
+  const currentCapRaw = BigInt(cap.currentCapUsdt);
+  if (currentCapRaw === BigInt(0)) return null;
+
+  const claimedRaw = BigInt(cap.cumulativeClaimedUsdt);
+  const remainingRaw = BigInt(cap.remainingCapUsdt);
+  const pct = Number((claimedRaw * BigInt(100)) / currentCapRaw);
+  const isCapped = cap.isCapped;
+  const isUnlockByTeam = cap.unlockPercent != null && cap.unlockPercent > 0;
+
+  return (
+    <div className="rounded-lg border p-3 space-y-2">
+      <div className="flex items-center justify-between text-sm">
+        <span className="text-muted-foreground">{t('capProgress')}</span>
+        <span className="font-mono font-medium">
+          {formatBalance(cap.cumulativeClaimedUsdt)} / {formatBalance(cap.currentCapUsdt)} USDT
+        </span>
+      </div>
+      {/* Progress bar */}
+      <div className="h-3 w-full overflow-hidden rounded-full bg-secondary">
+        <div
+          className={`h-full rounded-full transition-all ${isCapped ? 'bg-orange-500' : 'bg-primary'}`}
+          style={{ width: `${Math.min(pct, 100)}%` }}
+        />
+      </div>
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <span>{pct}%</span>
+        <span>{t('capRemainingLabel', { amount: formatBalance(String(remainingRaw)) })}</span>
+      </div>
+      {/* Capped prompt */}
+      {isCapped && (
+        <p className="text-xs text-orange-500 font-medium">
+          {isUnlockByTeam ? t('capReachedUnlock') : t('capReachedFixed')}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function AuditBreakdownCard({
+  memberView,
+  effectivePerMemberReward,
+  capLimitedRewardNex,
+  currentPoolBalance,
+  t,
+}: {
+  memberView: PoolRewardMemberView;
+  effectivePerMemberReward: string;
+  capLimitedRewardNex: string;
+  currentPoolBalance: string;
+  t: (key: string, values?: Record<string, string | number>) => string;
+}) {
+  const actualReward = memberView.claimableNex;
+  const cap = memberView.capInfo;
+  const memberStats = memberView.memberStats;
+  const quotaSource = BigInt(capLimitedRewardNex) < BigInt(effectivePerMemberReward)
+    ? t('limitedByCap')
+    : t('limitedByRoundShare');
+
+  return (
+    <div className="rounded-lg border p-3 space-y-3">
+      <div>
+        <p className="text-sm font-medium">{t('auditBreakdown')}</p>
+        <p className="text-xs text-muted-foreground">{t('auditBreakdownDesc')}</p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 text-sm">
+        <MetricCell label={t('memberCapUsdt')} value={formatBalance(cap.currentCapUsdt)} />
+        <MetricCell label={t('cumulativeClaimedUsdt')} value={formatBalance(cap.cumulativeClaimedUsdt)} />
+        <MetricCell label={t('capRemainingUsdt')} value={formatBalance(cap.remainingCapUsdt)} highlight={BigInt(cap.remainingCapUsdt) === BigInt(0)} />
+        <MetricCell label={t('baseCapUsdt')} value={formatBalance(cap.baseCapUsdt)} />
+        <MetricCell label={t('roundPerMemberReward')} value={`${formatBalance(effectivePerMemberReward)} NEX`} />
+        <MetricCell label={t('capLimitedRewardNex')} value={`${formatBalance(capLimitedRewardNex)} NEX`} />
+        <MetricCell label={t('actualRewardNex')} value={`${formatBalance(actualReward)} NEX`} highlight={BigInt(actualReward) > BigInt(0)} />
+        <MetricCell label={t('currentPoolBalanceLabel')} value={`${formatBalance(currentPoolBalance)} NEX`} />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 text-sm">
+        <MetricCell label={t('directCount')} value={memberStats.directCount} />
+        <MetricCell label={t('teamCount')} value={memberStats.teamCount} />
+        <MetricCell label={t('totalSpentUsdt')} value={formatBalance(memberStats.totalSpent)} />
+        <MetricCell label={t('unlockCount')} value={cap.unlockCount} />
+      </div>
+
+      <div className="rounded bg-muted/50 p-2 text-xs text-muted-foreground space-y-1">
+        <p>{t('rewardFormulaLine')}</p>
+        <p>{t('rewardFormulaValue', {
+          roundShare: formatBalance(effectivePerMemberReward),
+          capReward: formatBalance(capLimitedRewardNex),
+          actual: formatBalance(actualReward),
+        })}</p>
+        <p>{t('rewardLimitedBy', { source: quotaSource })}</p>
+        {cap.rateSnapshotUsed && <p>{t('rateSnapshotValue', { rate: cap.rateSnapshotUsed })}</p>}
+        {cap.isCapped && <p className="text-orange-500">{t('capReachedNow')}</p>}
+        {memberView.claimableNex !== '0' && BigInt(currentPoolBalance) < BigInt(memberView.claimableNex) && (
+          <p className="text-orange-500">{t('poolBalanceRisk')}</p>
+        )}
+      </div>
+
+      {(cap.unlockPercent != null || cap.nextDirectGap != null || cap.nextTeamGap != null || cap.nextUnlockIncreaseUsdt != null) && (
+        <div className="rounded bg-secondary p-2 text-xs text-muted-foreground space-y-1">
+          {cap.unlockPercent != null && <p>{t('unlockPercentValue', { percent: bpsToPercent(cap.unlockPercent) })}</p>}
+          {cap.unlockAmountPerStepUsdt != null && <p>{t('unlockAmountPerStepValue', { amount: formatBalance(cap.unlockAmountPerStepUsdt) })}</p>}
+          {cap.nextDirectGap != null && <p>{t('nextDirectGapValue', { count: cap.nextDirectGap })}</p>}
+          {cap.nextTeamGap != null && <p>{t('nextTeamGapValue', { count: cap.nextTeamGap })}</p>}
+          {cap.nextUnlockIncreaseUsdt != null && <p>{t('nextUnlockIncreaseValue', { amount: formatBalance(cap.nextUnlockIncreaseUsdt) })}</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MetricCell({
   label,
   value,
+  subValue,
   highlight,
   helpKey,
 }: {
   label: string;
   value: string | number;
+  subValue?: string;
   highlight?: boolean;
   helpKey?: string;
 }) {
@@ -549,6 +731,9 @@ function MetricCell({
       <p className={`text-lg font-semibold ${highlight ? 'text-orange-500' : ''}`}>
         {String(value)}
       </p>
+      {subValue && (
+        <p className="text-xs text-muted-foreground">{subValue}</p>
+      )}
     </div>
   );
 }

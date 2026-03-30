@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
-import { Loader2, ArrowRightLeft, Send, CheckCircle, HandCoins } from 'lucide-react';
+import { Loader2, ArrowRightLeft, HandCoins } from 'lucide-react';
 import { HelpTip } from '@/components/ui/help-tip';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,7 +12,6 @@ import { useWalletStore } from '@/stores';
 import {
   useNexPlaceBuyOrder, useNexPlaceSellOrder,
   useNexAcceptBuyOrder, useNexReserveSellOrder,
-  useNexConfirmPayment, useNexSellerConfirmReceived,
   useNexOrderBook,
 } from '@/hooks/use-nex-global-market';
 import { nexToRaw, usdtToRaw, formatNexPrice, isTxBusy } from '@/lib/utils/chain-helpers';
@@ -262,24 +261,6 @@ function TradeWorkflowForm({ address, prefill, onPrefillUsed }: {
         initialValues={reserveSellPrefill ? { ...reserveSellPrefill } : undefined}
         onInitialValuesUsed={onPrefillUsed}
         allOrders={allOrders}
-      />
-      <WorkflowAction
-        icon={<Send className="h-4 w-4" />}
-        label={tn('confirmPayment')}
-        helpKey="confirmPayment"
-        fields={['tradeId']}
-        useMutation={useNexConfirmPayment}
-        buildParams={(tradeId) => [Number(tradeId)]}
-        disabled={!address}
-      />
-      <WorkflowAction
-        icon={<CheckCircle className="h-4 w-4" />}
-        label={tn('sellerConfirmReceived')}
-        helpKey="sellerConfirmReceived"
-        fields={['tradeId']}
-        useMutation={useNexSellerConfirmReceived}
-        buildParams={(tradeId) => [Number(tradeId)]}
-        disabled={!address}
       />
     </div>
   );

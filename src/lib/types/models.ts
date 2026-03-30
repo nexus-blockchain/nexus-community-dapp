@@ -168,7 +168,7 @@ export type CommissionType =
   | 'SingleLineDownline'
   | 'EntityReferral'
   | 'PoolReward'
-  | 'CreatorReward';
+  | 'OwnerReward';
 
 /** Commission record status */
 export type CommissionStatus = 'Pending' | 'Settled' | 'Cancelled' | 'Distributed';
@@ -365,6 +365,13 @@ export interface PoolRewardMemberView {
   roundDuration: number;
   tokenPoolEnabled: boolean;
   levelRules: [number, number][];
+  levelRuleDetails: Array<{
+    levelId: number;
+    baseCapPercent: number;
+    capBehavior:
+      | { type: 'Fixed' }
+      | { type: 'UnlockByTeam'; directPerUnlock: number; teamPerUnlock: number; unlockPercent: number };
+  }>;
   currentRoundId: number;
   roundStartBlock: number;
   roundEndBlock: number;
@@ -376,6 +383,27 @@ export interface PoolRewardMemberView {
   alreadyClaimed: boolean;
   roundExpired: boolean;
   lastClaimedRound: number;
+  memberStats: {
+    directCount: number;
+    teamCount: number;
+    totalSpent: string;
+  };
+  capInfo: {
+    cumulativeClaimedUsdt: string;
+    currentCapUsdt: string;
+    remainingCapUsdt: string;
+    isCapped: boolean;
+    quotaNexBeforeCap: string;
+    rateSnapshotUsed: number | null;
+    baseCapPercent: number;
+    baseCapUsdt: string;
+    unlockCount: number;
+    unlockPercent: number | null;
+    unlockAmountPerStepUsdt: string | null;
+    nextDirectGap: number | null;
+    nextTeamGap: number | null;
+    nextUnlockIncreaseUsdt: string | null;
+  };
   levelProgress: LevelProgressInfo[];
   tokenLevelProgress: LevelProgressInfo[] | null;
   claimHistory: ClaimRecordInfo[];
@@ -952,7 +980,7 @@ export interface PluginBudgetCaps {
 
 export interface CoreCommissionConfig {
   maxCommissionRate: number;
-  creatorRewardRate: number;
+  ownerRewardRate: number;
   pluginCaps: PluginBudgetCaps;
   enabledModes: number;
 }

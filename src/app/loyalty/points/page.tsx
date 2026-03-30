@@ -9,11 +9,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Gift, ArrowRightLeft, Coins, Loader2, Check, AlertCircle } from 'lucide-react';
+import { Gift, ArrowRightLeft, Coins, Loader2 } from 'lucide-react';
 import { HelpTip } from '@/components/ui/help-tip';
 import { useEntityStore, useWalletStore } from '@/stores';
 import { usePointsConfig, usePointsBalance, useShoppingBalance, useTokenShoppingBalance, useTransferPoints, useRedeemPoints } from '@/hooks/use-loyalty';
 import { formatBalance, bpsToPercent, isTxBusy, nexToRaw } from '@/lib/utils/chain-helpers';
+import { TxStatusIndicator } from '@/components/ui/tx-status-indicator';
 
 export default function LoyaltyPointsPage() {
   const t = useTranslations('loyalty');
@@ -179,16 +180,7 @@ export default function LoyaltyPointsPage() {
                       {isBusy(transferPoints) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                       {t('confirmTransfer')}
                     </Button>
-                    {transferPoints.txState.status === 'finalized' && (
-                      <div className="flex items-center gap-2 text-sm text-success">
-                        <Check className="h-4 w-4" /> {t('transferSuccess')}
-                      </div>
-                    )}
-                    {transferPoints.txState.status === 'error' && (
-                      <div className="flex items-center gap-2 text-sm text-destructive">
-                        <AlertCircle className="h-4 w-4" /> {transferPoints.txState.error}
-                      </div>
-                    )}
+                    <TxStatusIndicator txState={transferPoints.txState} successMessage={t('transferSuccess')} />
                   </>
                 )}
               </CardContent>
@@ -219,16 +211,7 @@ export default function LoyaltyPointsPage() {
                   {isBusy(redeemPoints) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                   {t('confirmRedeem')}
                 </Button>
-                {redeemPoints.txState.status === 'finalized' && (
-                  <div className="flex items-center gap-2 text-sm text-success">
-                    <Check className="h-4 w-4" /> {t('redeemSuccess')}
-                  </div>
-                )}
-                {redeemPoints.txState.status === 'error' && (
-                  <div className="flex items-center gap-2 text-sm text-destructive">
-                    <AlertCircle className="h-4 w-4" /> {redeemPoints.txState.error}
-                  </div>
-                )}
+                <TxStatusIndicator txState={redeemPoints.txState} successMessage={t('redeemSuccess')} />
               </CardContent>
             </Card>
           )}

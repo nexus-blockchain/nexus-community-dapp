@@ -25,6 +25,7 @@ import { useApi } from '@/lib/chain';
 import { useNodeHealthStore, type NodeStatus } from '@/stores/node-health-store';
 import { locales, type Locale } from '@/i18n/config';
 import { isTxBusy } from '@/lib/utils/chain-helpers';
+import { TxStatusIndicator } from '@/components/ui/tx-status-indicator';
 
 const LOCALE_LABELS: Record<Locale, string> = {
   zh: '中文',
@@ -429,12 +430,7 @@ export default function SettingsPage() {
               })
             )}
           </div>
-          {registerMember.txState.status === 'finalized' && (
-            <p className="text-center text-sm text-success">{t('joinSuccess')}</p>
-          )}
-          {registerMember.txState.status === 'error' && (
-            <p className="text-center text-sm text-destructive">{registerMember.txState.error}</p>
-          )}
+          <TxStatusIndicator txState={registerMember.txState} successMessage={t('joinSuccess')} />
         </DialogContent>
       </Dialog>
     </>

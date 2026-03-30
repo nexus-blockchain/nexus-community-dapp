@@ -12,5 +12,4 @@ export type { OrderActionPrefill } from './nex-trade-form';
 export { NexOrderList } from './nex-order-list';
 export { NexFirstOrderBanner } from './nex-first-order-banner';
 export { NexActiveTrades } from './nex-active-trades';
-export { NexMyOrders } from './nex-my-orders';
 export { NexTradeHistory } from './nex-trade-history';

@@ -88,24 +88,28 @@ export default function SingleLineEarningsPage() {
   const [dirFilter, setDirFilter] = useState<DirectionFilter>('all');
 
   // Plugin payouts — reverse chronological
+  // User perspective: filter "upline" = commissions from upline buyers = I am their downline = direction 1
+  //                   filter "downline" = commissions from downline buyers = I am their upline = direction 0
   const sortedPayouts = useMemo(() => {
     const payouts = memberView?.recentPayouts ?? [];
     if (!payouts.length) return [];
     const reversed = [...payouts].reverse();
     if (dirFilter === 'all') return reversed;
     return reversed.filter((p) =>
-      dirFilter === 'upline' ? p.direction === 0 : p.direction === 1,
+      dirFilter === 'upline' ? p.direction === 1 : p.direction === 0,
     );
   }, [memberView?.recentPayouts, dirFilter]);
 
   // Core commission records — already sorted newest first from hook, apply filter
+  // User perspective: filter "upline" = from upline buyers = chain type SingleLineDownline (I earned as downline)
+  //                   filter "downline" = from downline buyers = chain type SingleLineUpline (I earned as upline)
   const filteredRecords = useMemo(() => {
     if (!coreRecords || !coreRecords.length) return [];
     if (dirFilter === 'all') return coreRecords;
     return coreRecords.filter((r) =>
       dirFilter === 'upline'
-        ? r.commissionType === 'SingleLineUpline'
-        : r.commissionType === 'SingleLineDownline',
+        ? r.commissionType === 'SingleLineDownline'
+        : r.commissionType === 'SingleLineUpline',
     );
   }, [coreRecords, dirFilter]);
 
@@ -135,7 +139,8 @@ export default function SingleLineEarningsPage() {
     };
   }, [queue, myPos]);
 
-  const isRecordUpline = (r: CommissionRecord) => r.commissionType === 'SingleLineUpline';
+  // User perspective: SingleLineDownline = I earned as downline = buyer is my upline → show "upline" label
+  const isFromUpline = (r: CommissionRecord) => r.commissionType === 'SingleLineDownline';
 
   return (
     <>
@@ -173,16 +178,16 @@ export default function SingleLineEarningsPage() {
                 {memberView && memberView.summary.totalPayoutCount > 0 && (
                   <div className="mt-2 grid grid-cols-2 gap-3">
                     <div>
-                      <p className="text-xs text-muted-foreground">{t('earnedAsUpline')}</p>
+                      <p className="text-xs text-muted-foreground">{t('earnedFromUpline')}</p>
                       <p className="text-lg font-bold text-green-500">
-                        {formatBalance(memberView.summary.totalEarnedAsUpline)}
+                        {formatBalance(memberView.summary.totalEarnedAsDownline)}
                         <span className="ml-1 text-xs font-normal text-muted-foreground">NEX</span>
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-muted-foreground">{t('earnedAsDownline')}</p>
+                      <p className="text-xs text-muted-foreground">{t('earnedFromDownline')}</p>
                       <p className="text-lg font-bold text-blue-500">
-                        {formatBalance(memberView.summary.totalEarnedAsDownline)}
+                        {formatBalance(memberView.summary.totalEarnedAsUpline)}
                         <span className="ml-1 text-xs font-normal text-muted-foreground">NEX</span>
                       </p>
                     </div>
@@ -248,7 +253,7 @@ export default function SingleLineEarningsPage() {
                 ) : (
                   <div className="space-y-2">
                     {filteredRecords.map((r, i) => {
-                      const upline = isRecordUpline(r);
+                      const upline = isFromUpline(r);
                       return (
                         <div key={`${r.orderId}-${r.commissionType}-${i}`} className="flex items-start gap-3 rounded-lg border border-border p-3">
                           <div className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
@@ -313,7 +318,9 @@ export default function SingleLineEarningsPage() {
                 ) : (
                   <div className="space-y-2">
                     {sortedPayouts.map((p, i) => {
-                      const isUpline = p.direction === 0;
+                      // User perspective: direction 0 = chain Upline = I am buyer's upline = buyer is my downline → show "downline"
+                      //                  direction 1 = chain Downline = I am buyer's downline = buyer is my upline → show "upline"
+                      const isUpline = p.direction === 1;
                       return (
                         <div key={i} className="flex items-start gap-3 rounded-lg border border-border p-3">
                           <div className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
