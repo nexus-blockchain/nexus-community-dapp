@@ -81,14 +81,14 @@ function MiniTable({ rows }: { rows: [string, string][] }) {
 }
 
 // ─── Budget bar ───
-function BudgetBar({ items }: { items: { label: string; value: number; color: string }[] }) {
-  const total = items.reduce((s, i) => s + i.value, 0);
-  if (total === 0) return null;
+function BudgetBar({ items }: { items: { label: string; value: bigint; color: string }[] }) {
+  const total = items.reduce((s, i) => s + i.value, BigInt(0));
+  if (total === BigInt(0)) return null;
   return (
     <div className="space-y-2">
       <div className="flex h-4 w-full overflow-hidden rounded-full">
         {items.map((item, i) => {
-          const pct = (item.value / total) * 100;
+          const pct = Number((item.value * BigInt(1000)) / total) / 10;
           if (pct < 0.5) return null;
           return (
             <div
@@ -101,12 +101,15 @@ function BudgetBar({ items }: { items: { label: string; value: number; color: st
         })}
       </div>
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px]">
-        {items.filter(i => i.value > 0).map((item, i) => (
+        {items.filter(i => i.value > BigInt(0)).map((item, i) => {
+          const pct = Number((item.value * BigInt(1000)) / total) / 10;
+          return (
           <span key={i} className="flex items-center gap-1">
             <span className={`inline-block h-2 w-2 rounded-full ${item.color}`} />
-            {item.label} ({((item.value / total) * 100).toFixed(1)}%)
+            {item.label} ({pct.toFixed(1)}%)
           </span>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -136,17 +139,18 @@ export default function CommissionPreviewPage() {
   const calc = useMemo(() => {
     // orderAmount is in USDT (integer, no decimals — e.g. 10000 = $10,000)
     // all rates are in bps (10000 = 100%)
-    const amountRaw = orderAmount * 1_000_000; // convert to raw USDT (6 decimals)
-    const poolB = (amountRaw * effectiveRate) / 10000;
-    const ownerRate = coreConfig?.ownerRewardRate ?? 0;
-    const ownerReward = (amountRaw * ownerRate) / 10000;
+    const amountRaw = BigInt(orderAmount) * BigInt(1_000_000); // convert to raw USDT (6 decimals)
+    const poolB = (amountRaw * BigInt(effectiveRate)) / BigInt(10000);
+    const ownerRate = BigInt(coreConfig?.ownerRewardRate ?? 0);
+    const ownerReward = (amountRaw * ownerRate) / BigInt(10000);
     const remaining = poolB - ownerReward;
     const caps = coreConfig?.pluginCaps;
 
-    const pluginBudget = (pluginName: keyof NonNullable<typeof caps>) => {
-      const capBps = caps?.[pluginName] ?? 0;
-      if (capBps > 0) {
-        return Math.min(remaining, (amountRaw * capBps) / 10000);
+    const pluginBudget = (pluginName: keyof NonNullable<typeof caps>): bigint => {
+      const capBps = BigInt(caps?.[pluginName] ?? 0);
+      if (capBps > BigInt(0)) {
+        const capped = (amountRaw * capBps) / BigInt(10000);
+        return remaining < capped ? remaining : capped;
       }
       return remaining; // no cap → gets full remaining
     };
@@ -296,31 +300,21 @@ export default function CommissionPreviewPage() {
                 >
                   {multiLevelConfig ? (
                     <div className="space-y-2">
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-xs">
-                          <thead>
-                            <tr className="border-b text-muted-foreground">
-                              <th className="pb-1 text-left font-medium">{t('level', { n: '' })}</th>
-                              <th className="pb-1 text-right font-medium">{t('rate')}</th>
-                              <th className="pb-1 text-right font-medium">{t('directRequired')}</th>
-                              <th className="pb-1 text-right font-medium">{t('teamRequired')}</th>
-                              <th className="pb-1 text-right font-medium">{t('spentRequired')}</th>
-                              <th className="pb-1 text-right font-medium">{t('levelReq')}</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {multiLevelConfig.levels.map((tier, i) => (
-                              <tr key={i} className="border-b last:border-0">
-                                <td className="py-1">{t('level', { n: i + 1 })}</td>
-                                <td className="py-1 text-right font-medium">{bpsToPercent(tier.rate)}</td>
-                                <td className="py-1 text-right">{tier.requiredDirects}</td>
-                                <td className="py-1 text-right">{tier.requiredTeamSize}</td>
-                                <td className="py-1 text-right">{tier.requiredSpent !== '0' ? formatUsdt(tier.requiredSpent) : '-'}</td>
-                                <td className="py-1 text-right">{tier.requiredLevelId > 0 ? tier.requiredLevelId : '-'}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                      <div className="space-y-2">
+                        {multiLevelConfig.levels.map((tier, i) => (
+                          <div key={i} className="rounded-lg border p-2.5 space-y-1 text-xs">
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium">{t('level', { n: i + 1 })}</span>
+                              <span className="font-mono font-medium">{bpsToPercent(tier.rate)}</span>
+                            </div>
+                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-muted-foreground">
+                              <span>{t('directRequired')}: {tier.requiredDirects}</span>
+                              <span>{t('teamRequired')}: {tier.requiredTeamSize}</span>
+                              <span>{t('spentRequired')}: {tier.requiredSpent !== '0' ? formatUsdt(tier.requiredSpent) : '-'}</span>
+                              {tier.requiredLevelId > 0 && <span>{t('levelReq')}: {tier.requiredLevelId}</span>}
+                            </div>
+                          </div>
+                        ))}
                       </div>
                       <MiniTable rows={[
                         [t('budgetCapBps'), coreConfig?.pluginCaps.multiLevel ? bpsToPercent(coreConfig.pluginCaps.multiLevel) : t('noCap')],
@@ -390,27 +384,19 @@ export default function CommissionPreviewPage() {
                 >
                   {teamConfig ? (
                     <div className="space-y-2">
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-xs">
-                          <thead>
-                            <tr className="border-b text-muted-foreground">
-                              <th className="pb-1 text-left font-medium">{t('tier', { n: '' })}</th>
-                              <th className="pb-1 text-right font-medium">{t('rate')}</th>
-                              <th className="pb-1 text-right font-medium">{t('salesThreshold')}</th>
-                              <th className="pb-1 text-right font-medium">{t('minTeamSize')}</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {teamConfig.tiers.map((tier, i) => (
-                              <tr key={i} className="border-b last:border-0">
-                                <td className="py-1">{t('tier', { n: i + 1 })}</td>
-                                <td className="py-1 text-right font-medium">{bpsToPercent(tier.rate)}</td>
-                                <td className="py-1 text-right">{formatUsdt(tier.salesThreshold)}</td>
-                                <td className="py-1 text-right">{tier.minTeamSize}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                      <div className="space-y-2">
+                        {teamConfig.tiers.map((tier, i) => (
+                          <div key={i} className="rounded-lg border p-2.5 space-y-1 text-xs">
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium">{t('tier', { n: i + 1 })}</span>
+                              <span className="font-mono font-medium">{bpsToPercent(tier.rate)}</span>
+                            </div>
+                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-muted-foreground">
+                              <span>{t('salesThreshold')}: {formatUsdt(tier.salesThreshold)}</span>
+                              <span>{t('minTeamSize')}: {tier.minTeamSize}</span>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                       <MiniTable rows={[
                         [t('maxDepth'), String(teamConfig.maxDepth)],

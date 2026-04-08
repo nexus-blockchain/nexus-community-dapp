@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { HelpTip } from '@/components/ui/help-tip';
 import { ORDER_STATUS_VARIANT, ORDER_STATUS_ICON } from '@/lib/constants/order-status';
-import { useOrder, useCancelOrder, useShipOrder, useConfirmReceipt, useRequestRefund, useApproveRefund, useRejectRefund, useSellerCancelOrder, useStartService, useCompleteService, useConfirmService, useWithdrawDispute } from '@/hooks/use-order';
+import { useOrder, useCancelOrder, useShipOrder, useConfirmReceipt, useRequestRefund, useApproveRefund, useRejectRefund, useSellerCancelOrder, useStartService, useCompleteService, useConfirmService, useWithdrawDispute, getOrderDisplayAmount, getOrderDisplayUnit, getOrderPaymentLabel } from '@/hooks/use-order';
 import { useProduct } from '@/hooks/use-product';
 import { useIpfsContent } from '@/hooks/use-ipfs-content';
 import { useNexPrice } from '@/hooks/use-nex-price';
@@ -75,8 +75,22 @@ export default function OrderDetailClient({ params }: { params: { id: string } }
     Cancelled: { label: t('statusCancelled'), variant: ORDER_STATUS_VARIANT.Cancelled, icon: ORDER_STATUS_ICON.Cancelled },
   };
 
-  const st = statusConfig[order?.status ?? ''] ?? { label: order?.status ?? '', variant: 'secondary' as const, icon: Clock };
+  const st = statusConfig[order?.status ?? ''] ?? { label: order?.status ?? '', variant: 'default' as const, icon: Clock };
   const StatusIcon = st.icon;
+  const displayAmount = order ? getOrderDisplayAmount(order) : '0';
+  const displayUnit = order ? getOrderDisplayUnit(order) : 'NEX';
+  const paymentLabel = order ? getOrderPaymentLabel(order, displayUnit) : '';
+
+  const unitPriceDisplay = order?.paymentAsset === 'EntityToken'
+    ? { amount: formatBalance(order.tokenPaymentAmount), unit: displayUnit, usdt: null }
+    : order
+      ? { amount: formatBalance(order.unitPrice), unit: 'NEX', usdt: toUsdt(order.unitPrice) }
+      : { amount: '0', unit: 'NEX', usdt: null };
+  const platformFeeDisplay = order?.paymentAsset === 'EntityToken'
+    ? { amount: formatBalance(order.platformFee), unit: displayUnit }
+    : order
+      ? { amount: formatBalance(order.platformFee), unit: 'NEX' }
+      : { amount: '0', unit: 'NEX' };
 
   return (
     <>
@@ -137,13 +151,10 @@ export default function OrderDetailClient({ params }: { params: { id: string } }
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">{t('unitPrice')}</span>
                     <div className="text-right">
-                      <span>{formatBalance(order.unitPrice)} NEX</span>
-                      {(() => {
-                        const usdtVal = toUsdt(order.unitPrice);
-                        return usdtVal ? (
-                          <div className="text-xs text-muted-foreground">≈ ${formatUsdt(usdtVal)}</div>
-                        ) : null;
-                      })()}
+                      <span>{unitPriceDisplay.amount} {unitPriceDisplay.unit}</span>
+                      {unitPriceDisplay.unit === 'NEX' && unitPriceDisplay.usdt && (
+                        <div className="text-xs text-muted-foreground">≈ ${formatUsdt(unitPriceDisplay.usdt)}</div>
+                      )}
                     </div>
                   </div>
                   <div className="flex justify-between">
@@ -153,9 +164,9 @@ export default function OrderDetailClient({ params }: { params: { id: string } }
                   <div className="flex justify-between">
                     <span className="text-muted-foreground flex items-center gap-1">{t('totalAmount')} <HelpTip helpKey="order.totalAmount" iconSize={12} /></span>
                     <div className="text-right">
-                      <span className="font-semibold text-primary">{formatBalance(order.totalAmount)} NEX</span>
-                      {(() => {
-                        const usdtVal = toUsdt(order.totalAmount);
+                      <span className="font-semibold text-primary">{formatBalance(displayAmount)} {displayUnit}</span>
+                      {displayUnit === 'NEX' && (() => {
+                        const usdtVal = toUsdt(displayAmount);
                         return usdtVal ? (
                           <div className="text-xs text-muted-foreground">≈ ${formatUsdt(usdtVal)}</div>
                         ) : null;
@@ -164,11 +175,11 @@ export default function OrderDetailClient({ params }: { params: { id: string } }
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground flex items-center gap-1">{t('platformFee')} <HelpTip helpKey="order.platformFee" iconSize={12} /></span>
-                    <span>{formatBalance(order.platformFee)} NEX</span>
+                    <span>{platformFeeDisplay.amount} {platformFeeDisplay.unit}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground flex items-center gap-1">{t('paymentMethod')} <HelpTip helpKey="order.paymentMethod" iconSize={12} /></span>
-                    <span>{order.paymentAsset === 'Native' ? 'NEX' : t('paymentToken')}</span>
+                    <span>{paymentLabel}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">{t('buyer')}</span>

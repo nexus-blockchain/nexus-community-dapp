@@ -22,9 +22,11 @@ import {
 } from '@/hooks/use-commission';
 import { useLevelSystem } from '@/hooks/use-member';
 import { useCurrentBlock } from '@/hooks/use-current-block';
-import { formatBalance, bpsToPercent, isTxBusy } from '@/lib/utils/chain-helpers';
+import { formatBalance, formatUsdt, formatNexPrice, bpsToPercent, isTxBusy, usdtToNexDynamic } from '@/lib/utils/chain-helpers';
 import { TxStatusIndicator } from '@/components/ui/tx-status-indicator';
-import type { LevelSnapshot, CompletedRoundSummary, PoolFundingRecord, LevelProgressInfo, PoolRewardMemberView } from '@/lib/types';
+import { usePagination } from '@/hooks/use-pagination';
+import { PaginationBar } from '@/components/ui/pagination-bar';
+import type { LevelSnapshot, CompletedRoundSummary, PoolFundingRecord, LevelProgressInfo, PoolRewardMemberView, PoolRewardConfig } from '@/lib/types';
 
 export default function PoolRewardPage() {
   const t = useTranslations('poolReward');
@@ -76,10 +78,28 @@ export default function PoolRewardPage() {
     && !memberView.roundExpired
     && memberView.currentRoundId > 0
     && BigInt(claimableNex) === BigInt(0);
+
+  // Fine-grained ineligibility diagnosis when claimableNex === 0
+  const ineligibleReason = useMemo((): 'noRateSnapshot' | 'quotaFull' | 'levelNotInRound' | 'poolInsufficient' | 'capExhausted' | 'levelNotEligible' | null => {
+    if (!isExactLevelIneligible || !memberView || effectiveLevel == null) return null;
+    const prog = memberView.levelProgress.find((p) => p.levelId === effectiveLevel);
+    // Level not included in this round's snapshots at all
+    if (!prog || prog.memberCount === 0) return 'levelNotInRound';
+    // Quota fully claimed by others
+    if (prog.claimedCount >= prog.memberCount) return 'quotaFull';
+    // Rate snapshot missing — chain cannot compute NEX cap
+    if (memberView.capInfo.rateSnapshotUsed == null) return 'noRateSnapshot';
+    // Cap exhausted
+    if (BigInt(memberView.capInfo.remainingCapUsdt) === BigInt(0)) return 'capExhausted';
+    // Pool balance insufficient (perMemberReward > 0 but pool < reward)
+    return 'levelNotEligible';
+  }, [isExactLevelIneligible, memberView, effectiveLevel]);
   const effectivePerMemberReward = memberView?.levelProgress.find((p) => p.levelId === effectiveLevel)?.perMemberReward
     ?? round?.perMemberReward
     ?? '0';
-  const capLimitedRewardNex = memberView?.capInfo.quotaNexBeforeCap ?? '0';
+  const capLimitedRewardNex = memberView
+    ? usdtToNexDynamic(memberView.capInfo.remainingCapUsdt, memberView.capInfo.rateSnapshotUsed ?? 0)
+    : null;
 
   // Calculate end block and remaining
   const endBlock = activeRound?.endBlock ?? (round && config ? round.startBlock + config.roundDuration : 0);
@@ -118,6 +138,10 @@ export default function PoolRewardPage() {
     }
     return [];
   }, [memberView, records]);
+
+  const claimPagination = usePagination(claimHistory);
+  const roundPagination = usePagination(sortedHistory);
+  const fundingPagination = usePagination(sortedFunding);
 
   return (
     <>
@@ -198,9 +222,13 @@ export default function PoolRewardPage() {
                                 ? t('roundExpired')
                                 : !(activeRound || round)
                                   ? t('noActiveRound')
-                                  : isExactLevelIneligible
-                                    ? t('levelNotEligible')
-                                    : t('noClaim')
+                                  : ineligibleReason === 'noRateSnapshot' ? t('ineligible.noRateSnapshot')
+                                  : ineligibleReason === 'quotaFull' ? t('ineligible.quotaFull')
+                                  : ineligibleReason === 'levelNotInRound' ? t('ineligible.levelNotInRound')
+                                  : ineligibleReason === 'poolInsufficient' ? t('ineligible.poolInsufficient')
+                                  : ineligibleReason === 'capExhausted' ? t('ineligible.capExhausted')
+                                  : ineligibleReason === 'levelNotEligible' ? t('ineligible.levelNotEligible')
+                                  : t('noClaim')
                         )}
                         {canClaim && (
                           <span className="font-medium text-success">{t('claimAvailable')}</span>
@@ -215,8 +243,15 @@ export default function PoolRewardPage() {
                       {isBusy ? t('claiming') : canClaim ? t('claim') : t('noClaim')}
                     </Button>
                   </div>
-                  {isExactLevelIneligible && (
-                    <p className="text-xs text-muted-foreground">{t('eligibilityHint')}</p>
+                  {ineligibleReason && (
+                    <p className="text-xs text-muted-foreground">
+                      {ineligibleReason === 'noRateSnapshot' ? t('ineligibleHint.noRateSnapshot')
+                        : ineligibleReason === 'quotaFull' ? t('ineligibleHint.quotaFull')
+                        : ineligibleReason === 'levelNotInRound' ? t('ineligibleHint.levelNotInRound')
+                        : ineligibleReason === 'poolInsufficient' ? t('ineligibleHint.poolInsufficient')
+                        : ineligibleReason === 'capExhausted' ? t('ineligibleHint.capExhausted')
+                        : t('ineligibleHint.levelNotEligible')}
+                    </p>
                   )}
                   <TxStatusIndicator txState={claim.txState} successMessage={t('claimSuccess')} />
                   {/* Cap progress bar */}
@@ -238,7 +273,7 @@ export default function PoolRewardPage() {
                   {claimHistory.length > 0 ? (
                     <div className="space-y-2">
                       <p className="text-sm font-medium">{t('claimHistory')}</p>
-                      {claimHistory.map((r, i) => (
+                      {claimPagination.pageItems.map((r, i) => (
                         <div key={i} className="flex items-center justify-between rounded-lg bg-secondary p-2 text-sm">
                           <div>
                             <span>{t('roundLabel', { id: r.roundId })}</span>
@@ -258,6 +293,7 @@ export default function PoolRewardPage() {
                           </div>
                         </div>
                       ))}
+                      <PaginationBar pagination={claimPagination} />
                     </div>
                   ) : (
                     <p className="text-sm text-muted-foreground">{t('noClaimHistory')}</p>
@@ -295,7 +331,7 @@ export default function PoolRewardPage() {
                     value={activeRound ? `${formatBalance(activeRound.poolSnapshot)} NEX` : round ? `${formatBalance(round.poolSnapshot)} NEX` : '-'}
                     helpKey="poolReward.poolSnapshot"
                   />
-                  <MetricCell label={t('lastRoundId')} value={activeRound?.roundId ?? distStats?.totalRoundsCompleted ?? 0} />
+                  <MetricCell label={t('lastRoundId')} value={Math.max((activeRound?.roundId ?? round?.roundId ?? 1) - 1, 0)} />
                 </div>
 
                 {/* Sediment pool balance */}
@@ -321,7 +357,7 @@ export default function PoolRewardPage() {
                 {memberView?.capInfo.rateSnapshotUsed && (
                   <div className="rounded-lg border p-3">
                     <p className="text-xs text-muted-foreground">{t('rateSnapshot')}</p>
-                    <p className="text-lg font-semibold">{memberView.capInfo.rateSnapshotUsed} USDT / NEX</p>
+                    <p className="text-lg font-semibold">{formatNexPrice(memberView.capInfo.rateSnapshotUsed)} USDT / NEX</p>
                   </div>
                 )}
 
@@ -439,7 +475,7 @@ export default function PoolRewardPage() {
                 <p className="py-4 text-center text-sm text-muted-foreground">{t('noRoundHistory')}</p>
               ) : (
                 <div className="space-y-2">
-                  {sortedHistory.map((r) => (
+                  {roundPagination.pageItems.map((r) => (
                     <RoundHistoryItem
                       key={r.roundId}
                       round={r}
@@ -447,6 +483,7 @@ export default function PoolRewardPage() {
                       t={t}
                     />
                   ))}
+                  <PaginationBar pagination={roundPagination} />
                 </div>
               )}
             </CardContent>
@@ -471,9 +508,10 @@ export default function PoolRewardPage() {
                 <p className="py-4 text-center text-sm text-muted-foreground">{t('noFundingRecords')}</p>
               ) : (
                 <div className="space-y-2">
-                  {sortedFunding.map((r, i) => (
+                  {fundingPagination.pageItems.map((r, i) => (
                     <FundingRecordItem key={i} record={r} t={t} />
                   ))}
+                  <PaginationBar pagination={fundingPagination} />
                 </div>
               )}
             </CardContent>
@@ -507,50 +545,18 @@ export default function PoolRewardPage() {
                     </Badge>
                   </div>
 
-                  {/* Level rules semantics */}
-                  {memberView?.levelRuleDetails.length ? (
-                    <div>
-                      <p className="mb-2 text-sm text-muted-foreground">{t('levelCapRules')}</p>
-                      <div className="space-y-1">
-                        {memberView.levelRuleDetails.map((rule) => (
-                          <div key={rule.levelId} className="rounded-lg bg-secondary p-2 text-sm">
-                            <div className="flex items-center justify-between gap-2">
-                              <span>
-                                Lv{rule.levelId}
-                                {levelNameById[rule.levelId] ? ` ${levelNameById[rule.levelId]}` : ''}
-                              </span>
-                              <Badge variant="outline">{bpsToPercent(rule.baseCapPercent)}</Badge>
-                            </div>
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              {rule.capBehavior.type === 'Fixed'
-                                ? t('fixedCapRule')
-                                : t('unlockRuleValue', {
-                                    direct: rule.capBehavior.directPerUnlock,
-                                    team: rule.capBehavior.teamPerUnlock,
-                                    percent: bpsToPercent(rule.capBehavior.unlockPercent),
-                                  })}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : (
-                  /* Level ratios */
+                  {/* Level rules & member stats table */}
                   <div>
-                    <p className="mb-2 text-sm text-muted-foreground flex items-center gap-1">{t('levelRatios')} <HelpTip helpKey="poolReward.levelRatios" iconSize={12} /></p>
-                    <div className="space-y-1">
-                      {config.levelRules.map(([levelId, ratio]) => (
-                        <div key={levelId} className="flex items-center justify-between rounded-lg bg-secondary p-2 text-sm">
-                          <span>
-                            Lv{levelId}
-                            {levelNameById[levelId] ? ` ${levelNameById[levelId]}` : ''}
-                          </span>
-                          <Badge variant="outline">{bpsToPercent(ratio)}</Badge>
-                        </div>
-                      ))}
-                    </div>
+                    <p className="mb-1 text-sm font-medium">{t('levelRuleTableTitle')}</p>
+                    <p className="mb-2 text-xs text-muted-foreground">{t('levelRuleTableDesc')}</p>
+                    <LevelRuleStatsTable
+                      config={config}
+                      memberView={memberView ?? null}
+                      levelSnapshots={round?.levelSnapshots ?? null}
+                      levelNameById={levelNameById}
+                      t={t}
+                    />
                   </div>
-                  )}
 
                   {/* Round duration */}
                   <div className="flex items-center justify-between text-sm">
@@ -599,11 +605,10 @@ function CapProgressBar({
 }) {
   const cap = memberView.capInfo;
   const currentCapRaw = BigInt(cap.currentCapUsdt);
-  if (currentCapRaw === BigInt(0)) return null;
 
   const claimedRaw = BigInt(cap.cumulativeClaimedUsdt);
   const remainingRaw = BigInt(cap.remainingCapUsdt);
-  const pct = Number((claimedRaw * BigInt(100)) / currentCapRaw);
+  const pct = currentCapRaw > BigInt(0) ? Number((claimedRaw * BigInt(10000)) / currentCapRaw) / 100 : 0;
   const isCapped = cap.isCapped;
   const isUnlockByTeam = cap.unlockPercent != null && cap.unlockPercent > 0;
 
@@ -612,7 +617,7 @@ function CapProgressBar({
       <div className="flex items-center justify-between text-sm">
         <span className="text-muted-foreground">{t('capProgress')}</span>
         <span className="font-mono font-medium">
-          {formatBalance(cap.cumulativeClaimedUsdt)} / {formatBalance(cap.currentCapUsdt)} USDT
+          {formatUsdt(cap.cumulativeClaimedUsdt)} / {formatUsdt(cap.currentCapUsdt)} USDT
         </span>
       </div>
       {/* Progress bar */}
@@ -623,8 +628,8 @@ function CapProgressBar({
         />
       </div>
       <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>{pct}%</span>
-        <span>{t('capRemainingLabel', { amount: formatBalance(String(remainingRaw)) })}</span>
+        <span>{pct.toFixed(1)}%</span>
+        <span>{t('capRemainingLabel', { amount: formatUsdt(String(remainingRaw)) })}</span>
       </div>
       {/* Capped prompt */}
       {isCapped && (
@@ -645,14 +650,15 @@ function AuditBreakdownCard({
 }: {
   memberView: PoolRewardMemberView;
   effectivePerMemberReward: string;
-  capLimitedRewardNex: string;
+  capLimitedRewardNex: string | null;
   currentPoolBalance: string;
   t: (key: string, values?: Record<string, string | number>) => string;
 }) {
   const actualReward = memberView.claimableNex;
   const cap = memberView.capInfo;
   const memberStats = memberView.memberStats;
-  const quotaSource = BigInt(capLimitedRewardNex) < BigInt(effectivePerMemberReward)
+  const hasCapLimitedReward = capLimitedRewardNex != null;
+  const quotaSource = hasCapLimitedReward && BigInt(capLimitedRewardNex) < BigInt(effectivePerMemberReward)
     ? t('limitedByCap')
     : t('limitedByRoundShare');
 
@@ -664,12 +670,12 @@ function AuditBreakdownCard({
       </div>
 
       <div className="grid grid-cols-2 gap-3 text-sm">
-        <MetricCell label={t('memberCapUsdt')} value={formatBalance(cap.currentCapUsdt)} />
-        <MetricCell label={t('cumulativeClaimedUsdt')} value={formatBalance(cap.cumulativeClaimedUsdt)} />
-        <MetricCell label={t('capRemainingUsdt')} value={formatBalance(cap.remainingCapUsdt)} highlight={BigInt(cap.remainingCapUsdt) === BigInt(0)} />
-        <MetricCell label={t('baseCapUsdt')} value={formatBalance(cap.baseCapUsdt)} />
+        <MetricCell label={t('memberCapUsdt')} value={formatUsdt(cap.currentCapUsdt)} />
+        <MetricCell label={t('cumulativeClaimedUsdt')} value={formatUsdt(cap.cumulativeClaimedUsdt)} />
+        <MetricCell label={t('capRemainingUsdt')} value={formatUsdt(cap.remainingCapUsdt)} highlight={BigInt(cap.remainingCapUsdt) === BigInt(0)} />
+        <MetricCell label={t('baseCapUsdt')} value={formatUsdt(cap.baseCapUsdt)} />
         <MetricCell label={t('roundPerMemberReward')} value={`${formatBalance(effectivePerMemberReward)} NEX`} />
-        <MetricCell label={t('capLimitedRewardNex')} value={`${formatBalance(capLimitedRewardNex)} NEX`} />
+        <MetricCell label={t('capLimitedRewardNex')} value={capLimitedRewardNex != null ? `${formatBalance(capLimitedRewardNex)} NEX` : '-'} />
         <MetricCell label={t('actualRewardNex')} value={`${formatBalance(actualReward)} NEX`} highlight={BigInt(actualReward) > BigInt(0)} />
         <MetricCell label={t('currentPoolBalanceLabel')} value={`${formatBalance(currentPoolBalance)} NEX`} />
       </div>
@@ -677,7 +683,7 @@ function AuditBreakdownCard({
       <div className="grid grid-cols-2 gap-3 text-sm">
         <MetricCell label={t('directCount')} value={memberStats.directCount} />
         <MetricCell label={t('teamCount')} value={memberStats.teamCount} />
-        <MetricCell label={t('totalSpentUsdt')} value={formatBalance(memberStats.totalSpent)} />
+        <MetricCell label={t('totalSpentUsdt')} value={formatUsdt(memberStats.totalSpent)} />
         <MetricCell label={t('unlockCount')} value={cap.unlockCount} />
       </div>
 
@@ -685,11 +691,11 @@ function AuditBreakdownCard({
         <p>{t('rewardFormulaLine')}</p>
         <p>{t('rewardFormulaValue', {
           roundShare: formatBalance(effectivePerMemberReward),
-          capReward: formatBalance(capLimitedRewardNex),
+          capReward: capLimitedRewardNex != null ? formatBalance(capLimitedRewardNex) : '-',
           actual: formatBalance(actualReward),
         })}</p>
         <p>{t('rewardLimitedBy', { source: quotaSource })}</p>
-        {cap.rateSnapshotUsed && <p>{t('rateSnapshotValue', { rate: cap.rateSnapshotUsed })}</p>}
+        {cap.rateSnapshotUsed && <p>{t('rateSnapshotValue', { rate: formatNexPrice(cap.rateSnapshotUsed) })}</p>}
         {cap.isCapped && <p className="text-orange-500">{t('capReachedNow')}</p>}
         {memberView.claimableNex !== '0' && BigInt(currentPoolBalance) < BigInt(memberView.claimableNex) && (
           <p className="text-orange-500">{t('poolBalanceRisk')}</p>
@@ -699,10 +705,10 @@ function AuditBreakdownCard({
       {(cap.unlockPercent != null || cap.nextDirectGap != null || cap.nextTeamGap != null || cap.nextUnlockIncreaseUsdt != null) && (
         <div className="rounded bg-secondary p-2 text-xs text-muted-foreground space-y-1">
           {cap.unlockPercent != null && <p>{t('unlockPercentValue', { percent: bpsToPercent(cap.unlockPercent) })}</p>}
-          {cap.unlockAmountPerStepUsdt != null && <p>{t('unlockAmountPerStepValue', { amount: formatBalance(cap.unlockAmountPerStepUsdt) })}</p>}
+          {cap.unlockAmountPerStepUsdt != null && <p>{t('unlockAmountPerStepValue', { amount: formatUsdt(cap.unlockAmountPerStepUsdt) })}</p>}
           {cap.nextDirectGap != null && <p>{t('nextDirectGapValue', { count: cap.nextDirectGap })}</p>}
           {cap.nextTeamGap != null && <p>{t('nextTeamGapValue', { count: cap.nextTeamGap })}</p>}
-          {cap.nextUnlockIncreaseUsdt != null && <p>{t('nextUnlockIncreaseValue', { amount: formatBalance(cap.nextUnlockIncreaseUsdt) })}</p>}
+          {cap.nextUnlockIncreaseUsdt != null && <p>{t('nextUnlockIncreaseValue', { amount: formatUsdt(cap.nextUnlockIncreaseUsdt) })}</p>}
         </div>
       )}
     </div>
@@ -750,51 +756,33 @@ function LevelSnapshotTable({
   t: (key: string) => string;
 }) {
   return (
-    <div className="overflow-x-auto rounded-md border">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b bg-muted/30">
-            <th className="px-3 py-2 text-left font-medium">{t('levelId')}</th>
-            <th className="px-3 py-2 text-right font-medium">{t('memberCount')}</th>
-            <th className="px-3 py-2 text-right font-medium">{t('perMemberReward')}</th>
-            <th className="px-3 py-2 text-right font-medium">{t('claimProgress')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {snapshots.map((snap) => {
-            const pct = snap.memberCount > 0
-              ? Math.round((snap.claimedCount / snap.memberCount) * 100)
-              : 0;
-            return (
-              <tr key={snap.levelId} className="border-b last:border-0">
-                <td className="px-3 py-2">
-                  <Badge variant="outline">
-                    Lv{snap.levelId}
-                    {levelNameById[snap.levelId] ? ` ${levelNameById[snap.levelId]}` : ''}
-                  </Badge>
-                </td>
-                <td className="px-3 py-2 text-right font-mono">{snap.memberCount}</td>
-                <td className="px-3 py-2 text-right font-mono font-medium">
-                  {formatBalance(snap.perMemberReward)} {unit}
-                </td>
-                <td className="px-3 py-2 text-right">
-                  <div className="flex items-center justify-end gap-2">
-                    <div className="h-2 w-16 overflow-hidden rounded-full bg-secondary">
-                      <div
-                        className="h-full rounded-full bg-primary transition-all"
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                    <span className="font-mono text-xs">
-                      {snap.claimedCount}/{snap.memberCount}
-                    </span>
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+    <div className="space-y-2">
+      {snapshots.map((snap) => {
+        const pct = snap.memberCount > 0
+          ? Math.round((snap.claimedCount / snap.memberCount) * 100)
+          : 0;
+        return (
+          <div key={snap.levelId} className="rounded-lg border p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <Badge variant="outline">
+                Lv{snap.levelId}
+                {levelNameById[snap.levelId] ? ` ${levelNameById[snap.levelId]}` : ''}
+              </Badge>
+              <span className="text-xs text-muted-foreground">{snap.memberCount} {t('memberCount')}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-mono font-medium">{formatBalance(snap.perMemberReward)} {unit}</span>
+              <span className="font-mono text-xs">{snap.claimedCount}/{snap.memberCount}</span>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
+              <div
+                className="h-full rounded-full bg-primary transition-all"
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -812,55 +800,33 @@ function LevelProgressTable({
   t: (key: string) => string;
 }) {
   return (
-    <div className="overflow-x-auto rounded-md border">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b bg-muted/30">
-            <th className="px-3 py-2 text-left font-medium">{t('levelId')}</th>
-            <th className="px-3 py-2 text-right font-medium">{t('levelRatios')}</th>
-            <th className="px-3 py-2 text-right font-medium">{t('memberCount')}</th>
-            <th className="px-3 py-2 text-right font-medium">{t('perMemberReward')}</th>
-            <th className="px-3 py-2 text-right font-medium">{t('claimProgress')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {progress.map((p) => {
-            const pct = p.memberCount > 0
-              ? Math.round((p.claimedCount / p.memberCount) * 100)
-              : 0;
-            return (
-              <tr key={p.levelId} className="border-b last:border-0">
-                <td className="px-3 py-2">
-                  <Badge variant="outline">
-                    Lv{p.levelId}
-                    {levelNameById[p.levelId] ? ` ${levelNameById[p.levelId]}` : ''}
-                  </Badge>
-                </td>
-                <td className="px-3 py-2 text-right font-mono text-xs">
-                  {bpsToPercent(p.ratioBps)}
-                </td>
-                <td className="px-3 py-2 text-right font-mono">{p.memberCount}</td>
-                <td className="px-3 py-2 text-right font-mono font-medium">
-                  {formatBalance(p.perMemberReward)} {unit}
-                </td>
-                <td className="px-3 py-2 text-right">
-                  <div className="flex items-center justify-end gap-2">
-                    <div className="h-2 w-16 overflow-hidden rounded-full bg-secondary">
-                      <div
-                        className="h-full rounded-full bg-primary transition-all"
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                    <span className="font-mono text-xs">
-                      {p.claimedCount}/{p.memberCount}
-                    </span>
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+    <div className="space-y-2">
+      {progress.map((p) => {
+        const pct = p.memberCount > 0
+          ? Math.round((p.claimedCount / p.memberCount) * 100)
+          : 0;
+        return (
+          <div key={p.levelId} className="rounded-lg border p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <Badge variant="outline">
+                Lv{p.levelId}
+                {levelNameById[p.levelId] ? ` ${levelNameById[p.levelId]}` : ''}
+              </Badge>
+              <span className="text-xs text-muted-foreground">{bpsToPercent(p.ratioBps)} · {p.memberCount} {t('memberCount')}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-mono font-medium">{formatBalance(p.perMemberReward)} {unit}</span>
+              <span className="font-mono text-xs">{p.claimedCount}/{p.memberCount}</span>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
+              <div
+                className="h-full rounded-full bg-primary transition-all"
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -1037,6 +1003,107 @@ function FundingRecordItem({
           <p className="font-mono text-xs text-muted-foreground">{formatBalance(record.tokenAmount)} Token</p>
         )}
       </div>
+    </div>
+  );
+}
+
+/** Level rules & member stats table — merged from levelRuleDetails + levelProgress */
+function LevelRuleStatsTable({
+  config,
+  memberView,
+  levelSnapshots,
+  levelNameById,
+  t,
+}: {
+  config: PoolRewardConfig;
+  memberView: PoolRewardMemberView | null;
+  levelSnapshots: LevelSnapshot[] | null;
+  levelNameById: Record<number, string>;
+  t: (key: string, values?: Record<string, string | number>) => string;
+}) {
+  // Build a lookup from levelId → levelProgress entry
+  const progressByLevel = useMemo(() => {
+    const map: Record<number, LevelProgressInfo> = {};
+    if (memberView?.levelProgress) {
+      for (const p of memberView.levelProgress) {
+        map[p.levelId] = p;
+      }
+    }
+    return map;
+  }, [memberView]);
+
+  // Fallback: build memberCount from round levelSnapshots when memberView is unavailable
+  const snapshotCountByLevel = useMemo(() => {
+    const map: Record<number, number> = {};
+    if (levelSnapshots) {
+      for (const s of levelSnapshots) {
+        map[s.levelId] = s.memberCount;
+      }
+    }
+    return map;
+  }, [levelSnapshots]);
+
+  // Prefer levelRuleDetails when available (has capBehavior), otherwise fall back to raw levelRules
+  const rows: Array<{
+    levelId: number;
+    baseCapPercent: number;
+    capBehavior: PoolRewardMemberView['levelRuleDetails'][number]['capBehavior'] | null;
+  }> = memberView?.levelRuleDetails?.length
+    ? memberView.levelRuleDetails.map((r) => ({
+        levelId: r.levelId,
+        baseCapPercent: r.baseCapPercent,
+        capBehavior: r.capBehavior,
+      }))
+    : config.levelRules.map(([levelId, ratio]) => ({
+        levelId,
+        baseCapPercent: ratio,
+        capBehavior: null,
+      }));
+
+  if (rows.length === 0) return null;
+
+  return (
+    <div className="space-y-2">
+      {rows.map((row) => {
+        const prog = progressByLevel[row.levelId];
+        const memberCount = prog?.memberCount ?? snapshotCountByLevel[row.levelId] ?? 0;
+        const capReachedCount: number | null = null;
+        const capReachedRate =
+          capReachedCount != null && memberCount > 0
+            ? `${((capReachedCount / memberCount) * 100).toFixed(0)}%`
+            : null;
+
+        let behaviorLabel: string;
+        if (!row.capBehavior || row.capBehavior.type === 'Fixed') {
+          behaviorLabel = t('capBehaviorFixed');
+        } else {
+          behaviorLabel = t('capBehaviorUnlock', {
+            percent: bpsToPercent(row.capBehavior.unlockPercent),
+            direct: row.capBehavior.directPerUnlock,
+            team: row.capBehavior.teamPerUnlock,
+          });
+        }
+
+        return (
+          <div key={row.levelId} className="rounded-lg border p-3 space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Badge variant="outline" className="text-xs">
+                Lv{row.levelId}
+                {levelNameById[row.levelId] ? ` ${levelNameById[row.levelId]}` : ''}
+              </Badge>
+              <span className="font-mono text-xs font-medium">{bpsToPercent(row.baseCapPercent)}</span>
+            </div>
+            <p className="text-xs text-muted-foreground">{behaviorLabel}</p>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">{t('colMemberCount')}: <span className="font-mono">{memberCount}</span></span>
+              <span className="text-muted-foreground">
+                {t('colCapReachedCount')}: <span className="font-mono">{capReachedCount ?? t('capReachedCountNA')}</span>
+                {capReachedRate && <> ({capReachedRate})</>}
+              </span>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

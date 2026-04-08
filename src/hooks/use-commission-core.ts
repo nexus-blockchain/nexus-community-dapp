@@ -166,7 +166,7 @@ export function useRepurchaseConfig(entityId: number | null) {
         autoOrder: Boolean(obj.autoOrder ?? obj.auto_order),
         defaultProductId: Number(obj.defaultProductId ?? obj.default_product_id ?? 0),
         shoppingBalanceTtlBlocks: Number(obj.shoppingBalanceTtlBlocks ?? obj.shopping_balance_ttl_blocks ?? 0),
-        maxShoppingBalanceUsdt: String(BigInt(obj.maxShoppingBalanceUsdt ?? obj.max_shopping_balance_usdt ?? 0) * BigInt(1e6)),
+        maxShoppingBalanceUsdt: String(BigInt(obj.maxShoppingBalanceUsdt ?? obj.max_shopping_balance_usdt ?? 0)),
       };
     },
     { staleTime: STALE_TIMES.commission, enabled: entityId != null },

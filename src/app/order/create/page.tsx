@@ -121,7 +121,8 @@ function OrderCreateContent() {
       shippingAddr || null,                // shipping_cid
       paymentAsset === 'EntityToken'       // use_tokens: Option<Balance>
         ? totalNex.toString() : null,
-      shoppingBalSpend,                    // use_shopping_balance: Option<Balance>
+      useShoppingBal && shoppingBalSpend   // payment_asset: Option<PaymentAsset>
+        ? 'ShoppingBalance' : paymentAsset,
       note || null,                        // note_cid
       referrer || null,                    // referrer
       null,                                // max_nex_amount (no slippage limit)
@@ -307,11 +308,19 @@ function OrderCreateContent() {
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
-              {t('shoppingBalanceAvailable', {
-                amount: formatBalance(shoppingBalanceRaw ?? '0'),
-              })}
-            </p>
+            <div>
+              <p className="text-sm text-muted-foreground">
+                {t('shoppingBalanceAvailable', {
+                  amount: formatBalance(shoppingBalanceRaw ?? '0'),
+                })}
+              </p>
+              {(() => {
+                const usdtVal = toUsdt(shoppingBalanceRaw ?? '0');
+                return usdtVal ? (
+                  <p className="text-xs text-muted-foreground">≈ ${formatUsdt(usdtVal)}</p>
+                ) : null;
+              })()}
+            </div>
             <Button
               variant={useShoppingBal ? 'default' : 'outline'}
               size="sm"

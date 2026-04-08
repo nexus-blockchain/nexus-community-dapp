@@ -12,18 +12,17 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-  Wallet, Award, Gift, Settings, ShoppingCart, Coins,
-  TrendingUp, Copy, Check, ChevronRight, Blocks,
-  Send, QrCode, Clock, RefreshCw, Network, Users,
+  Wallet, Award, Gift, Settings, ShoppingCart,
+  Copy, Check, ChevronRight, Blocks,
+  Send, QrCode, Clock, RefreshCw, Network, Users, Info, Landmark,
 } from 'lucide-react';
 import { useWalletStore, useEntityStore } from '@/stores';
 import { useNodeHealthStore, type NodeStatus } from '@/stores/node-health-store';
 import { useApi } from '@/lib/chain';
-import { useMember } from '@/hooks/use-member';
+import { useMember, useLevelSystem } from '@/hooks/use-member';
 import { useMemberDashboard } from '@/hooks/use-member-team';
 import { useBuyerOrders } from '@/hooks/use-order';
 import { useNexBalance } from '@/hooks/use-nex-balance';
-import { useShoppingBalance, useTokenShoppingBalance } from '@/hooks/use-loyalty';
 import { formatBalance, shortAddress, formatUsdt } from '@/lib/utils/chain-helpers';
 import { useNexPrice } from '@/hooks/use-nex-price';
 import { TransferDialog, ReceiveDialog } from '@/components/wallet/wallet-dialogs';
@@ -78,8 +77,19 @@ function MemberNetworkSection() {
   const { address, isConnected } = useWalletStore();
   const { data: member } = useMember(currentEntityId, address);
   const { data: dashboard } = useMemberDashboard(currentEntityId, address);
-  const { data: shoppingBalance } = useShoppingBalance(currentEntityId, address);
-  const { data: tokenBalance } = useTokenShoppingBalance(currentEntityId, address);
+  const { data: levelSystem } = useLevelSystem(currentEntityId);
+
+  // Compute how much more spending is needed to reach the next level
+  const totalSpent = dashboard?.totalSpent ?? '0';
+  const nextLevelThreshold: number | null = (() => {
+    if (!levelSystem || !dashboard) return null;
+    const currentEffective = dashboard.effectiveLevelId;
+    const sorted = [...levelSystem.levels].sort((a, b) => a.threshold - b.threshold);
+    const next = sorted.find((l) => l.id > currentEffective && l.threshold > Number(totalSpent));
+    return next ? next.threshold : null;
+  })();
+  const upgradeNeeded: number | null =
+    nextLevelThreshold != null ? Math.max(0, nextLevelThreshold - Number(totalSpent)) : null;
 
   if (!isConnected || !currentEntityId) return null;
 
@@ -97,7 +107,7 @@ function MemberNetworkSection() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium truncate">{entityName}</span>
-                  <Badge variant="default" className="shrink-0">LV.{member.customLevelId}</Badge>
+                  <Badge variant="default" className="shrink-0">LV.{dashboard?.effectiveLevelId ?? member.customLevelId}</Badge>
                 </div>
                 {dashboard && (
                   <div className="flex items-center gap-2 mt-0.5">
@@ -119,12 +129,16 @@ function MemberNetworkSection() {
             {/* Balances row */}
             <div className="grid grid-cols-2 gap-2">
               <div className="rounded-lg bg-background/60 p-2 text-center">
-                <p className="text-[10px] text-muted-foreground">{tc('shoppingBalanceNex')}</p>
-                <p className="text-sm font-bold text-primary">{formatBalance(shoppingBalance ?? '0')}</p>
+                <p className="text-[10px] text-muted-foreground">{tc('totalConsumptionUsdt')}</p>
+                <p className="text-sm font-bold text-primary">${formatUsdt(totalSpent)}</p>
               </div>
               <div className="rounded-lg bg-background/60 p-2 text-center">
-                <p className="text-[10px] text-muted-foreground">{tc('tokenBalanceLabel')}</p>
-                <p className="text-sm font-bold text-info">{formatBalance(tokenBalance ?? '0')}</p>
+                <p className="text-[10px] text-muted-foreground">{tc('upgradeConsumptionUsdt')}</p>
+                {upgradeNeeded != null ? (
+                  <p className="text-sm font-bold text-amber-500">${formatUsdt(upgradeNeeded)}</p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">{tc('upgradeConsumptionMaxed')}</p>
+                )}
               </div>
             </div>
 
@@ -211,10 +225,10 @@ export default function MePage() {
     { label: t('profile.walletManagement'), icon: Wallet, href: '/me/wallet' },
     { label: t('profile.myOrders'), icon: ShoppingCart, href: '/me/orders' },
     { label: t('profile.pointsManagement'), icon: Gift, href: '/loyalty/points' },
-    { label: t('profile.myEarnings'), icon: Coins, href: '/earnings' },
-    { label: t('profile.tokenTrade'), icon: TrendingUp, href: '/market' },
+    { label: t('profile.governance'), icon: Landmark, href: '/governance' },
     { label: t('profile.chainInfo'), icon: Blocks, href: '/chain' },
     { label: t('profile.settings'), icon: Settings, href: '/settings' },
+    { label: t('profile.aboutUs'), icon: Info, href: '/about' },
   ];
 
   const handleCopy = () => {

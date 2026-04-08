@@ -4,7 +4,7 @@ import { useTranslations } from 'next-intl';
 import { History } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { formatBalance, formatNexPrice } from '@/lib/utils/chain-helpers';
+import { formatBalance, formatUsdt } from '@/lib/utils/chain-helpers';
 import type { NexMarketTrade } from '@/lib/types';
 
 interface NexTradeHistoryProps {
@@ -73,7 +73,7 @@ export function NexTradeHistory({ trades, address }: NexTradeHistoryProps) {
                   {isBuyer ? '+' : '-'}{formatBalance(trade.nexAmount)}
                 </span>
                 <span className="tabular-nums text-muted-foreground">
-                  ${formatNexPrice(trade.usdtAmount)}
+                  ${formatUsdt(trade.usdtAmount)}
                 </span>
                 <div className="text-right">
                   <Badge variant={statusColor} className="text-[10px]">

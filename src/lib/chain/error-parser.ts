@@ -80,6 +80,8 @@ const ERROR_MESSAGES: Record<string, Record<string, string>> = {
     CooldownActive: '冷却期未结束',
     AmountBelowMinimum: '金额低于最低限额',
     AmountAboveMaximum: '金额超过最高限额',
+    ShoppingBalanceExceedsThreshold: '购物余额（折算 USDT）超过阈值，不可提现（需先消费购物余额）',
+    TokenShoppingBalanceExceedsThreshold: 'Token 购物余额（折算 USDT）超过阈值，不可提现',
   },
   commissionPoolReward: {
     PoolNotFound: '奖池不存在',

@@ -16,8 +16,8 @@ export function formatBalance(raw: string | bigint, decimals = 12, displayDecima
 }
 
 /** Format USDT amount (6 decimals) — uses BigInt to avoid floating-point precision loss */
-export function formatUsdt(raw: number | string, displayDecimals = 2): string {
-  const bi = BigInt(typeof raw === 'number' ? Math.round(raw) : raw);
+export function formatUsdt(raw: number | string | bigint, displayDecimals = 2): string {
+  const bi = typeof raw === 'bigint' ? raw : BigInt(typeof raw === 'number' ? Math.round(raw) : raw);
   const divisor = BigInt(1e6);
   const whole = bi / divisor;
   const frac = bi % divisor;
@@ -42,6 +42,55 @@ export function formatNexPrice(raw: number | string): string {
   // Show up to 6 decimals but trim trailing zeros
   const s = value.toFixed(6);
   return s.replace(/0+$/, '').replace(/\.$/, '');
+}
+
+/**
+ * Estimate USDT total from display-level price and amount using BigInt math.
+ * Used for UI "estimated total" labels in trade forms.
+ *
+ * @param priceDisplay  Display-level price string (e.g. "0.05" USDT)
+ * @param amountDisplay Display-level amount string (e.g. "1000" NEX)
+ * @param priceDecimals Decimals for price (default 6 for USDT)
+ * @param amountDecimals Decimals for amount (default 12 for NEX)
+ * @param displayDecimals Decimals in result string (default 2)
+ * @returns Formatted USDT string or null if inputs invalid
+ */
+export function estimateTotal(
+  priceDisplay: string,
+  amountDisplay: string,
+  priceDecimals = 6,
+  amountDecimals = 12,
+  displayDecimals = 2,
+): string | null {
+  try {
+    const priceParts = priceDisplay.split('.');
+    const priceFrac = (priceParts[1] || '').padEnd(priceDecimals, '0').slice(0, priceDecimals);
+    const priceRaw = BigInt(priceParts[0] || '0') * BigInt(10 ** priceDecimals) + BigInt(priceFrac);
+
+    const amtParts = amountDisplay.split('.');
+    const amtFrac = (amtParts[1] || '').padEnd(amountDecimals, '0').slice(0, amountDecimals);
+    const amtRaw = BigInt(amtParts[0] || '0') * BigInt(10 ** amountDecimals) + BigInt(amtFrac);
+
+    if (priceRaw <= BigInt(0) || amtRaw <= BigInt(0)) return null;
+
+    const totalRaw = priceRaw * amtRaw;
+    const divisor = BigInt(10 ** (priceDecimals + amountDecimals));
+    const whole = totalRaw / divisor;
+    const frac = totalRaw % divisor;
+
+    if (displayDecimals === 0) return `${whole}`;
+
+    const scale = BigInt(10 ** displayDecimals);
+    const rounded = (frac * scale + divisor / BigInt(2)) / divisor;
+    const carry = rounded / scale;
+    const fracValue = rounded % scale;
+    const wholeWithCarry = whole + carry;
+
+    if (displayDecimals === 0) return `${wholeWithCarry}`;
+    return `${wholeWithCarry}.${fracValue.toString().padStart(displayDecimals, '0')}`;
+  } catch {
+    return null;
+  }
 }
 
 /** Parse basis points to percentage string */
@@ -128,9 +177,16 @@ export function nexToRaw(amount: string): bigint {
   return whole;
 }
 
-/** Convert USDT amount string to chain-compatible number (6 decimals) */
-export function usdtToRaw(amount: string): number {
-  return Math.round(parseFloat(amount) * 1e6);
+/** Convert USDT amount string to chain-compatible bigint (6 decimals) */
+export function usdtToRaw(amount: string): bigint {
+  if (amount.startsWith('-')) throw new Error('Amount must not be negative');
+  const parts = amount.split('.');
+  const whole = BigInt(parts[0] || '0') * BigInt(1e6);
+  if (parts[1]) {
+    const frac = parts[1].padEnd(6, '0').slice(0, 6);
+    return whole + BigInt(frac);
+  }
+  return whole;
 }
 
 /**
@@ -147,7 +203,7 @@ export function usdtToRaw(amount: string): number {
 export function usdtToNexDynamic(usdtPrice: number | string, nexUsdtRate: number | string): string | null {
   const rate = BigInt(nexUsdtRate || '0');
   if (rate <= BigInt(0)) return null;
-  const usdt = BigInt(typeof usdtPrice === 'number' ? usdtPrice : Number(usdtPrice));
+  const usdt = BigInt(usdtPrice);
   if (usdt <= BigInt(0)) return null;
   const nexRaw = (usdt * BigInt(10 ** 12)) / rate;
   return nexRaw.toString();

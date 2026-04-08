@@ -1,8 +1,8 @@
 /** Default seed nodes.
  * Production deployments can override via NEXT_PUBLIC_WS_ENDPOINTS env var. */
 export const SEED_NODES: string[] = [
+  'ws://149.88.70.10:9944',
   'ws://127.0.0.1:9944',
-  'ws://202.140.140.202:9944',
 ];
 
 /** Node health probe configuration */

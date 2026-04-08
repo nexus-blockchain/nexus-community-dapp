@@ -14,7 +14,7 @@ import {
   useNexAcceptBuyOrder, useNexReserveSellOrder,
   useNexOrderBook,
 } from '@/hooks/use-nex-global-market';
-import { nexToRaw, usdtToRaw, formatNexPrice, isTxBusy } from '@/lib/utils/chain-helpers';
+import { nexToRaw, usdtToRaw, formatNexPrice, formatUsdt, isTxBusy, estimateTotal } from '@/lib/utils/chain-helpers';
 import type { NexMarketOrder } from '@/lib/types';
 
 function isBusy(m: { txState: { status: string } }): boolean {
@@ -131,7 +131,7 @@ function LimitOrderForm({ address }: { address: string | null }) {
   };
 
   const estimatedUsdt = price && amount
-    ? (parseFloat(price) * parseFloat(amount)).toFixed(2)
+    ? estimateTotal(price, amount, 6, 12, 2)
     : null;
 
   return (
@@ -157,8 +157,10 @@ function LimitOrderForm({ address }: { address: string | null }) {
       </div>
 
       <div>
-        <label className="mb-1 block text-xs text-muted-foreground flex items-center gap-1">{tn('usdtPrice')} <HelpTip helpKey="nexMarket.usdtPrice" iconSize={12} /></label>
+        <label htmlFor="nex-limit-price" className="mb-1 block text-xs text-muted-foreground flex items-center gap-1">{tn('usdtPrice')} <HelpTip helpKey="nexMarket.usdtPrice" iconSize={12} /></label>
         <Input
+          id="nex-limit-price"
+          name="price"
           inputMode="decimal"
           placeholder="0.00"
           value={price}
@@ -166,8 +168,10 @@ function LimitOrderForm({ address }: { address: string | null }) {
         />
       </div>
       <div>
-        <label className="mb-1 block text-xs text-muted-foreground flex items-center gap-1">{tn('nexAmount')} <HelpTip helpKey="nexMarket.nexAmount" iconSize={12} /></label>
+        <label htmlFor="nex-limit-amount" className="mb-1 block text-xs text-muted-foreground flex items-center gap-1">{tn('nexAmount')} <HelpTip helpKey="nexMarket.nexAmount" iconSize={12} /></label>
         <Input
+          id="nex-limit-amount"
+          name="amount"
           inputMode="decimal"
           placeholder="0"
           value={amount}
@@ -175,8 +179,10 @@ function LimitOrderForm({ address }: { address: string | null }) {
         />
       </div>
       <div>
-        <label className="mb-1 block text-xs text-muted-foreground flex items-center gap-1">{tn('tronAddress')} <HelpTip helpKey="nexMarket.tronAddress" iconSize={12} /></label>
+        <label htmlFor="nex-limit-tron" className="mb-1 block text-xs text-muted-foreground flex items-center gap-1">{tn('tronAddress')} <HelpTip helpKey="nexMarket.tronAddress" iconSize={12} /></label>
         <Input
+          id="nex-limit-tron"
+          name="tronAddress"
           placeholder={tn('tronPlaceholder')}
           value={tronAddr}
           onChange={(e) => setTronAddr(e.target.value)}
@@ -185,8 +191,10 @@ function LimitOrderForm({ address }: { address: string | null }) {
 
       {side === 'Sell' && (
         <div>
-          <label className="mb-1 block text-xs text-muted-foreground flex items-center gap-1">{tn('minFillAmount')} <HelpTip helpKey="nexMarket.minFillAmount" iconSize={12} /></label>
+          <label htmlFor="nex-limit-min-fill" className="mb-1 block text-xs text-muted-foreground flex items-center gap-1">{tn('minFillAmount')} <HelpTip helpKey="nexMarket.minFillAmount" iconSize={12} /></label>
           <Input
+            id="nex-limit-min-fill"
+            name="minFill"
             inputMode="decimal"
             placeholder={tn('minFillPlaceholder')}
             value={minFill}
@@ -316,12 +324,11 @@ function WorkflowAction({ icon, label, helpKey, fields, useMutation: useMut, bui
     if (!matchedOrder) return null;
     const amountStr = values.amount?.trim();
     if (!amountStr) return null;
-    const nexAmount = parseFloat(amountStr);
-    if (isNaN(nexAmount) || nexAmount <= 0) return null;
-    // order.price is raw u64 with 6 decimals
-    const priceUsdt = Number(matchedOrder.price) / 1e6;
-    if (priceUsdt <= 0) return null;
-    return (nexAmount * priceUsdt).toFixed(2);
+    try {
+      return estimateTotal(formatUsdt(matchedOrder.price, 6), amountStr, 6, 12, 2);
+    } catch {
+      return null;
+    }
   }, [matchedOrder, values.amount]);
 
   const fieldConfig: Record<FieldType, { label: string; placeholder: string; inputMode?: 'decimal' | 'numeric' }> = {

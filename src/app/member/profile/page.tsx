@@ -260,7 +260,7 @@ export default function MemberProfilePage() {
                   ) : (
                     <div className="space-y-3">
                       {levelSystem.levels.map((level) => {
-                        const currentLevel = member?.customLevelId ?? 0;
+                        const currentLevel = dashboard.effectiveLevelId;
                         const isCurrent = level.id === currentLevel;
                         const spentThreshold = member?.totalSpent ?? 0;
                         const isReached = spentThreshold >= level.threshold;

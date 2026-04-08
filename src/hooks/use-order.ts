@@ -4,7 +4,36 @@ import { useEntityQuery } from './use-entity-query';
 import { useEntityMutation } from './use-entity-mutation';
 import { STALE_TIMES } from '@/lib/chain/constants';
 import { bytesToString } from '@/lib/utils/chain-helpers';
+import { PaymentAsset } from '@/lib/types';
 import type { Order } from '@/lib/types';
+
+export function getOrderDisplayAmount(order: Pick<Order, 'paymentAsset' | 'totalAmount' | 'tokenPaymentAmount' | 'shoppingBalanceUsed'>): string {
+  switch (order.paymentAsset) {
+    case PaymentAsset.ShoppingBalance:
+      return order.shoppingBalanceUsed;
+    case PaymentAsset.EntityToken:
+      return order.tokenPaymentAmount;
+    case PaymentAsset.Native:
+    default:
+      return order.totalAmount;
+  }
+}
+
+export function getOrderDisplayUnit(order: Pick<Order, 'paymentAsset'>): 'NEX' | 'Entity Token' {
+  return order.paymentAsset === PaymentAsset.EntityToken ? 'Entity Token' : 'NEX';
+}
+
+export function getOrderPaymentLabel(order: Pick<Order, 'paymentAsset'>, paymentTokenLabel: string): string {
+  switch (order.paymentAsset) {
+    case PaymentAsset.ShoppingBalance:
+      return 'Shopping Balance';
+    case PaymentAsset.EntityToken:
+      return paymentTokenLabel;
+    case PaymentAsset.Native:
+    default:
+      return 'NEX';
+  }
+}
 
 function parseOrder(data: any): Order {
   return {
@@ -28,6 +57,7 @@ function parseOrder(data: any): Order {
     completedAt: data.completedAt ?? data.completed_at ?? null,
     paymentAsset: data.paymentAsset ?? data.payment_asset ?? 'Native',
     tokenPaymentAmount: String(data.tokenPaymentAmount ?? data.token_payment_amount ?? '0'),
+    shoppingBalanceUsed: String(data.shoppingBalanceUsed ?? data.shopping_balance_used ?? '0'),
     confirmExtended: data.confirmExtended ?? data.confirm_extended ?? false,
     disputeRejected: data.disputeRejected ?? data.dispute_rejected ?? false,
     disputeDeadline: data.disputeDeadline ?? data.dispute_deadline ?? null,

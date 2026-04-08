@@ -5,7 +5,7 @@ import { Shield, ShieldAlert } from 'lucide-react';
 import { HelpTip } from '@/components/ui/help-tip';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { formatNexPrice, bpsToPercent } from '@/lib/utils/chain-helpers';
+import { formatNexPrice, formatUsdt, bpsToPercent } from '@/lib/utils/chain-helpers';
 import type { NexMarketStats, NexPriceProtection } from '@/lib/types';
 
 interface NexPricePanelProps {
@@ -45,7 +45,7 @@ export function NexPricePanel({ stats, protection, seedPricePremiumBps }: NexPri
             <span className="text-muted-foreground">{t('volume')} </span>
             <span className="tabular-nums font-medium">
               {stats?.totalVolumeUsdt && stats.totalVolumeUsdt !== '0'
-                ? `$${formatNexPrice(stats.totalVolumeUsdt)}`
+                ? `$${formatUsdt(stats.totalVolumeUsdt)}`
                 : stats?.totalTrades ?? 0}
             </span>
           </div>

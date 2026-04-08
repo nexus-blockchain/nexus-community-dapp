@@ -19,6 +19,8 @@ import {
 import { useMultiLevelPayouts } from '@/hooks/use-commission';
 import { formatBalance, bpsToPercent, shortAddress, formatUsdt } from '@/lib/utils/chain-helpers';
 import { useMemo } from 'react';
+import { usePagination } from '@/hooks/use-pagination';
+import { PaginationBar } from '@/components/ui/pagination-bar';
 
 export default function MultiLevelEarningsPage() {
   const t = useTranslations('multiLevel');
@@ -36,6 +38,8 @@ export default function MultiLevelEarningsPage() {
     if (!payouts || !payouts.length) return [];
     return [...payouts].reverse();
   }, [payouts]);
+
+  const payoutsPagination = usePagination(sortedPayouts);
 
   // Look up tier rate by level number (level is 1-based, tiers array is 0-based)
   const getTierRate = (level: number): number | null => {
@@ -118,7 +122,7 @@ export default function MultiLevelEarningsPage() {
                   <p className="py-4 text-center text-sm text-muted-foreground">{t('noPayouts')}</p>
                 ) : (
                   <div className="space-y-2">
-                    {sortedPayouts.map((p, i) => {
+                    {payoutsPagination.pageItems.map((p, i) => {
                       const tierRate = getTierRate(p.level);
                       return (
                         <div key={i} className="flex items-start gap-3 rounded-lg border border-border p-3">
@@ -145,6 +149,7 @@ export default function MultiLevelEarningsPage() {
                         </div>
                       );
                     })}
+                    <PaginationBar pagination={payoutsPagination} />
                   </div>
                 )}
               </CardContent>

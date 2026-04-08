@@ -14,7 +14,7 @@ import {
   ShoppingBag, ChevronRight,
 } from 'lucide-react';
 import { useWalletStore } from '@/stores';
-import { useBuyerOrders } from '@/hooks/use-order';
+import { useBuyerOrders, getOrderDisplayAmount, getOrderDisplayUnit, getOrderPaymentLabel } from '@/hooks/use-order';
 import { useIpfsContents } from '@/hooks/use-ipfs-content';
 import { useEntityQuery } from '@/hooks/use-entity-query';
 import { formatBalance, bytesToString } from '@/lib/utils/chain-helpers';
@@ -98,6 +98,9 @@ function OrderCard({
     order.status === 'Disputed' ? t('statusDisputed') :
     order.status === 'Refunded' ? t('statusRefunded') :
     order.status === 'Cancelled' ? t('statusCancelled') : order.status;
+  const displayAmount = getOrderDisplayAmount(order);
+  const displayUnit = getOrderDisplayUnit(order);
+  const paymentLabel = getOrderPaymentLabel(order, t('paymentToken'));
 
   return (
     <Link href={`/order/${order.id}`}>
@@ -123,13 +126,13 @@ function OrderCard({
               <p className="text-xs text-muted-foreground">
                 x{order.quantity}
                 {order.paymentAsset !== 'Native' && (
-                  <span className="ml-1.5 text-info">{t('tokenPay')}</span>
+                  <span className="ml-1.5 text-info">{paymentLabel}</span>
                 )}
               </p>
             </div>
             <div className="text-right shrink-0">
-              <p className="text-sm font-semibold text-primary">{formatBalance(order.totalAmount)}</p>
-              <p className="text-[10px] text-muted-foreground">NEX</p>
+              <p className="text-sm font-semibold text-primary">{formatBalance(displayAmount)}</p>
+              <p className="text-[10px] text-muted-foreground">{displayUnit}</p>
             </div>
             <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
           </div>

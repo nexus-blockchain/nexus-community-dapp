@@ -65,6 +65,7 @@ export type {
   NexMarketOrder,
   NexMarketTrade,
   NexMarketStats,
+  TwapAccumulatorData,
   NexPriceProtection,
   // Commission Core
   NexCommissionMemberStats,

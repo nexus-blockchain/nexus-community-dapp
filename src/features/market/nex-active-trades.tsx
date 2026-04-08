@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { formatBalance, formatNexPrice, shortAddress, isTxBusy } from '@/lib/utils/chain-helpers';
+import { formatBalance, formatNexPrice, formatUsdt, shortAddress, isTxBusy } from '@/lib/utils/chain-helpers';
 import { useNexConfirmPayment, useNexSellerConfirmReceived, useNexProcessTimeout } from '@/hooks/use-nex-global-market';
 import type { NexMarketTrade, NexMarketOrder } from '@/lib/types';
 
@@ -140,7 +140,7 @@ function ActiveTradeCard({ trade, address }: { trade: NexMarketTrade; address: s
         </div>
         <div>
           <span className="text-muted-foreground">USDT: </span>
-          <span className="tabular-nums font-medium">${formatNexPrice(trade.usdtAmount)}</span>
+          <span className="tabular-nums font-medium">${formatUsdt(trade.usdtAmount)}</span>
         </div>
         {BigInt(trade.buyerDeposit) > BigInt(0) && (
           <div className="flex items-center gap-0.5">

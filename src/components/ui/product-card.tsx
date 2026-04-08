@@ -21,10 +21,6 @@ interface ProductCardProps {
   showStatusBadge?: boolean;
   /** Status badge labels keyed by status */
   statusLabels?: Record<string, string>;
-  /** Stock label functions */
-  stockUnlimitedText?: string;
-  stockText?: (remaining: number) => string;
-  soldText?: (count: number) => string;
 }
 
 export function ProductCard({
@@ -35,9 +31,6 @@ export function ProductCard({
   marketRate,
   showStatusBadge = false,
   statusLabels,
-  stockUnlimitedText,
-  stockText,
-  soldText,
 }: ProductCardProps) {
   return (
     <Link href={`/product/${product.id}`}>
@@ -79,16 +72,6 @@ export function ProductCard({
                 {formatBalance(product.price, 12, 0)} NEX
               </p>
             ) : null}
-            <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-              <span>
-                {product.stock === 0
-                  ? (stockUnlimitedText ?? '∞')
-                  : (stockText?.(product.stock - product.soldCount) ?? `${product.stock - product.soldCount}`)}
-              </span>
-              {product.soldCount > 0 && (
-                <span>{soldText?.(product.soldCount) ?? `${product.soldCount} sold`}</span>
-              )}
-            </div>
           </div>
         </CardContent>
       </Card>

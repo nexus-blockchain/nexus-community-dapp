@@ -138,6 +138,22 @@ export function useNexMarketStats() {
       // NOT the computed TWAP value (which requires (cumulative_diff / block_diff)).
       const twapJson = twapRaw?.toJSON?.() ?? null;
       const twapLastPrice = twapJson?.lastPrice ?? twapJson?.last_price ?? null;
+
+      // Parse full TWAP accumulator for 1hr TWAP calculation
+      const parseSnapshot = (s: any) => ({
+        cumulativePrice: String(s?.cumulativePrice ?? s?.cumulative_price ?? '0'),
+        blockNumber: Number(s?.blockNumber ?? s?.block_number ?? 0),
+      });
+      const twapAccumulator = twapJson ? {
+        currentCumulative: String(twapJson.currentCumulative ?? twapJson.current_cumulative ?? '0'),
+        currentBlock: Number(twapJson.currentBlock ?? twapJson.current_block ?? 0),
+        lastPrice: String(twapJson.lastPrice ?? twapJson.last_price ?? '0'),
+        tradeCount: Number(twapJson.tradeCount ?? twapJson.trade_count ?? 0),
+        hourSnapshot: parseSnapshot(twapJson.hourSnapshot ?? twapJson.hour_snapshot),
+        daySnapshot: parseSnapshot(twapJson.daySnapshot ?? twapJson.day_snapshot),
+        weekSnapshot: parseSnapshot(twapJson.weekSnapshot ?? twapJson.week_snapshot),
+      } : null;
+
       return {
         twapLastPrice: twapLastPrice != null ? String(twapLastPrice) : '0',
         lastPrice: lastPriceRaw?.isNone
@@ -146,6 +162,7 @@ export function useNexMarketStats() {
         totalOrders: stats.totalOrders ?? stats.total_orders ?? 0,
         totalTrades: stats.totalTrades ?? stats.total_trades ?? 0,
         totalVolumeUsdt: String(stats.totalVolumeUsdt ?? stats.total_volume_usdt ?? '0'),
+        twapAccumulator,
       };
     },
     { staleTime: STALE_TIMES.orderBook },

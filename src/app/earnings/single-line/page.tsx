@@ -22,6 +22,8 @@ import {
 } from '@/hooks/use-single-line-commission';
 import { formatBalance, bpsToPercent, shortAddress } from '@/lib/utils/chain-helpers';
 import { useMemo, useState, useCallback } from 'react';
+import { usePagination } from '@/hooks/use-pagination';
+import { PaginationBar } from '@/components/ui/pagination-bar';
 import type { CommissionRecord, CommissionStatus } from '@/lib/types';
 
 function AddressCard({ address, index, isSelf }: { address: string; index: number; isSelf: boolean }) {
@@ -122,6 +124,9 @@ export default function SingleLineEarningsPage() {
     }
     return total.toString();
   }, [filteredRecords]);
+
+  const recordsPagination = usePagination(filteredRecords);
+  const payoutsPagination = usePagination(sortedPayouts);
 
   const myPos = position?.position ?? null;
 
@@ -252,7 +257,7 @@ export default function SingleLineEarningsPage() {
                   <p className="py-4 text-center text-sm text-muted-foreground">{t('noRecords')}</p>
                 ) : (
                   <div className="space-y-2">
-                    {filteredRecords.map((r, i) => {
+                    {recordsPagination.pageItems.map((r, i) => {
                       const upline = isFromUpline(r);
                       return (
                         <div key={`${r.orderId}-${r.commissionType}-${i}`} className="flex items-start gap-3 rounded-lg border border-border p-3">
@@ -286,6 +291,7 @@ export default function SingleLineEarningsPage() {
                         </div>
                       );
                     })}
+                    <PaginationBar pagination={recordsPagination} />
                   </div>
                 )}
               </CardContent>
@@ -317,7 +323,7 @@ export default function SingleLineEarningsPage() {
                   <p className="py-4 text-center text-sm text-muted-foreground">{t('noPayouts')}</p>
                 ) : (
                   <div className="space-y-2">
-                    {sortedPayouts.map((p, i) => {
+                    {payoutsPagination.pageItems.map((p, i) => {
                       // User perspective: direction 0 = chain Upline = I am buyer's upline = buyer is my downline → show "downline"
                       //                  direction 1 = chain Downline = I am buyer's downline = buyer is my upline → show "upline"
                       const isUpline = p.direction === 1;
@@ -350,6 +356,7 @@ export default function SingleLineEarningsPage() {
                         </div>
                       );
                     })}
+                    <PaginationBar pagination={payoutsPagination} />
                   </div>
                 )}
               </CardContent>

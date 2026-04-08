@@ -65,6 +65,7 @@ export enum OrderStatus {
 export enum PaymentAsset {
   Native = 'Native',
   EntityToken = 'EntityToken',
+  ShoppingBalance = 'ShoppingBalance',
 }
 
 /** Market order side */

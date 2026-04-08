@@ -147,9 +147,6 @@ export default function ShopDetailClient({ params }: { params: { id: string } })
                     loadingText={t('productNumber', { id: product.id })}
                     dynNex={toNex(product.usdtPrice)}
                     marketRate={marketRate}
-                    stockUnlimitedText={t('stockUnlimited')}
-                    stockText={(n) => t('stock', { count: n })}
-                    soldText={(n) => t('sold', { count: n })}
                   />
                 ))}
               </div>

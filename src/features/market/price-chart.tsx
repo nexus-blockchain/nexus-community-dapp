@@ -70,7 +70,7 @@ export function PriceChart({ trades }: PriceChartProps) {
                 fontSize: '12px',
                 color: 'hsl(var(--foreground))',
               }}
-              formatter={(v: number) => [v.toFixed(0), 'NEX']}
+              formatter={(v: number) => [v.toFixed(2), 'NEX']}
               labelFormatter={(label: number) => `Block #${label}`}
             />
             <Line

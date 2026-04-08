@@ -19,4 +19,5 @@ export {
   queryStorageMap,
   isTxBusy,
   parseChainEnum,
+  estimateTotal,
 } from './chain-helpers';

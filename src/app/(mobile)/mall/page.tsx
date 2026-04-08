@@ -144,9 +144,6 @@ export default function MallPage() {
                             SoldOut: tProduct('soldOut'),
                             OffShelf: tProduct('offShelf'),
                           }}
-                          stockUnlimitedText={tShop('stockUnlimited')}
-                          stockText={(n) => tShop('stock', { count: n })}
-                          soldText={(n) => tShop('sold', { count: n })}
                         />
                       ))}
                     </div>

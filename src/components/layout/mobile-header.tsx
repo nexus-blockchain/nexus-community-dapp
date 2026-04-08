@@ -17,7 +17,7 @@ export function MobileHeader({ title, className, right, showBack }: MobileHeader
   return (
     <header
       className={cn(
-        'sticky top-0 z-40 flex h-12 items-center justify-between border-b border-border bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/85',
+        'sticky top-0 z-40 flex min-h-12 items-center justify-between border-b border-border bg-background/95 px-4 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-background/85',
         className
       )}
     >

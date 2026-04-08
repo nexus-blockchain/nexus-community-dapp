@@ -96,9 +96,9 @@ export default function CommunityHomePage() {
 
   const quickActions = [
     { key: 'viewShops', label: t('home.viewShops'), icon: ShoppingBag, href: '/mall', color: 'text-info' },
-    { key: 'myOrders', label: t('home.myOrders'), icon: ShoppingCart, href: '/me', color: 'text-success' },
+    { key: 'myOrders', label: t('home.myOrders'), icon: ShoppingCart, href: '/me/orders', color: 'text-success' },
     { key: 'myEarnings', label: t('home.myEarnings'), icon: Coins, href: '/earnings', color: 'text-warning' },
-    { key: 'inviteFriends', label: t('home.inviteFriends'), icon: UserPlus, href: '/member/invite', color: 'text-primary' },
+    { key: 'inviteFriends', label: t('home.inviteFriends'), icon: UserPlus, href: '/member/network', color: 'text-primary' },
     { key: 'tokenMarket', label: t('home.tokenMarket'), icon: TrendingUp, href: '/market', color: 'text-accent' },
     { key: 'referralNetwork', label: t('home.referralNetwork'), icon: Network, href: '/member/network', color: 'text-info' },
   ];
@@ -230,9 +230,6 @@ export default function CommunityHomePage() {
                       name={productNameMap.get(product.nameCid)}
                       loadingText={tMall('loading')}
                       dynNex={toNex(product.usdtPrice)}
-                      stockUnlimitedText={tShop('stockUnlimited')}
-                      stockText={(n) => tShop('stock', { count: n })}
-                      soldText={(n) => tShop('sold', { count: n })}
                     />
                   ))}
                 </div>

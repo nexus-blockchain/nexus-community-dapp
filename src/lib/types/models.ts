@@ -103,6 +103,7 @@ export interface Order {
   completedAt: number | null;
   paymentAsset: string;
   tokenPaymentAmount: string;
+  shoppingBalanceUsed: string;
   confirmExtended: boolean;
   disputeRejected: boolean;
   disputeDeadline: number | null;
@@ -577,6 +578,18 @@ export interface NexMarketStats {
   totalOrders: number;
   totalTrades: number;
   totalVolumeUsdt: string; // total USDT volume (raw, 6 decimals)
+  /** Full TWAP accumulator for computing 1hr TWAP (matches chain PricingProvider) */
+  twapAccumulator: TwapAccumulatorData | null;
+}
+
+export interface TwapAccumulatorData {
+  currentCumulative: string; // u128
+  currentBlock: number;      // u32
+  lastPrice: string;         // u64 (raw, 6 decimals)
+  tradeCount: number;        // u64
+  hourSnapshot: { cumulativePrice: string; blockNumber: number };
+  daySnapshot: { cumulativePrice: string; blockNumber: number };
+  weekSnapshot: { cumulativePrice: string; blockNumber: number };
 }
 
 export interface NexPriceProtection {

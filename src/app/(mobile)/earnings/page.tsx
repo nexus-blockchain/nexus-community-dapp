@@ -78,9 +78,11 @@ export default function EarningsPage() {
   const { toUsdt: nexToUsdt } = useNexPrice();
   const shoppingBalUsdt = shoppingBal && nexToUsdt ? nexToUsdt(shoppingBal) : null;
   const thresholdUsdt = repurchaseConfig?.maxShoppingBalanceUsdt ?? '0';
-  const shoppingExceedsThreshold = BigInt(thresholdUsdt) > BigInt(0)
-    && shoppingBalUsdt != null
-    && BigInt(shoppingBalUsdt) > BigInt(thresholdUsdt);
+  // 阈值 > 0 且有购物余额时：价格未加载则保守阻止，价格已加载则比较
+  const hasThreshold = BigInt(thresholdUsdt) > BigInt(0);
+  const hasShoppingBal = shoppingBal != null && BigInt(shoppingBal) > BigInt(0);
+  const shoppingExceedsThreshold = hasThreshold && hasShoppingBal
+    && (shoppingBalUsdt == null || BigInt(shoppingBalUsdt) > BigInt(thresholdUsdt));
 
   const isLoading = dashLoading || statsLoading || overviewLoading;
 
@@ -115,7 +117,7 @@ export default function EarningsPage() {
       status: 'enabled',
       description: t('referralDesc'),
       stat: dashboard?.referral
-        ? `${formatBalance(dashboard.referral.totalEarned, 12, 4)} NEX`
+        ? `${formatBalance(dashboard.referral.totalEarned)} NEX`
         : undefined,
     });
   }
@@ -133,7 +135,7 @@ export default function EarningsPage() {
         ? t('activatedLevels', { count: activatedLevels })
         : t('multiLevelDesc'),
       stat: dashboard?.multiLevelStats
-        ? `${formatBalance(dashboard.multiLevelStats.totalEarned, 12, 4)} NEX`
+        ? `${formatBalance(dashboard.multiLevelStats.totalEarned)} NEX`
         : undefined,
     });
   }
@@ -150,7 +152,7 @@ export default function EarningsPage() {
         ? `${t('currentTier')}: ${dashboard.teamTier.name || `T${dashboard.teamTier.tierIndex}`} (${bpsToPercent(dashboard.teamTier.rate)})`
         : t('teamDesc'),
       stat: dashboard?.teamTier
-        ? `${formatBalance(dashboard.teamTier.totalEarned, 12, 4)} NEX`
+        ? `${formatBalance(dashboard.teamTier.totalEarned)} NEX`
         : undefined,
     });
   }
@@ -183,7 +185,7 @@ export default function EarningsPage() {
         ? t('position', { pos: dashboard.singleLine.position })
         : t('singleLineDesc'),
       stat: slTotal && BigInt(slTotal) > BigInt(0)
-        ? `${formatBalance(slTotal, 12, 4)} NEX`
+        ? `${formatBalance(slTotal)} NEX`
         : undefined,
     });
   }
@@ -201,10 +203,10 @@ export default function EarningsPage() {
         ? t('currentRound', { id: dashboard.poolReward.currentRoundId })
         : t('poolRewardDesc'),
       stat: dashboard?.poolReward?.claimableNex && BigInt(dashboard.poolReward.claimableNex) > BigInt(0)
-        ? `${t('claimable')}: ${formatBalance(dashboard.poolReward.claimableNex, 12, 4)} NEX`
+        ? `${t('claimable')}: ${formatBalance(dashboard.poolReward.claimableNex)} NEX`
         : undefined,
       stat2: BigInt(poolBalance) > BigInt(0)
-        ? `${isZh ? '沉淀池' : 'Pool'}: ${formatBalance(poolBalance, 12, 4)} NEX`
+        ? `${isZh ? '沉淀池' : 'Pool'}: ${formatBalance(poolBalance)} NEX`
         : undefined,
     });
   }
@@ -253,7 +255,7 @@ export default function EarningsPage() {
                 <>
                   <div className="flex items-center justify-between">
                     <p className="text-3xl font-bold text-success">
-                      {formatBalance(totalEarned, 12, 4)}
+                      {formatBalance(totalEarned)}
                       <span className="ml-1 text-sm font-normal text-muted-foreground">NEX</span>
                     </p>
                   </div>
@@ -268,15 +270,15 @@ export default function EarningsPage() {
                   <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
                     <div>
                       <p className="text-muted-foreground flex items-center gap-0.5">{t('pendingAmount')} <HelpTip helpKey="earnings.pendingAmount" iconSize={10} /></p>
-                      <p className="font-medium">{formatBalance(pending, 12, 4)}</p>
+                      <p className="font-medium">{formatBalance(pending)}</p>
                     </div>
                     <div>
                       <p className="text-muted-foreground flex items-center gap-0.5">{t('withdrawnAmount')} <HelpTip helpKey="earnings.withdrawnAmount" iconSize={10} /></p>
-                      <p className="font-medium">{formatBalance(withdrawn, 12, 4)}</p>
+                      <p className="font-medium">{formatBalance(withdrawn)}</p>
                     </div>
                     <div>
                       <p className="text-muted-foreground flex items-center gap-0.5">{t('repurchasedAmount')} <HelpTip helpKey="earnings.repurchasedAmount" iconSize={10} /></p>
-                      <p className="font-medium">{formatBalance(repurchased, 12, 4)}</p>
+                      <p className="font-medium">{formatBalance(repurchased)}</p>
                     </div>
                   </div>
 
@@ -290,13 +292,22 @@ export default function EarningsPage() {
                             <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
                             <span>{t('shoppingBalanceExceedsThreshold')}</span>
                           </div>
-                          <p className="mt-1 text-[10px] text-destructive/80">
-                            {isZh
-                              ? `当前购物余额 ≈ ${formatUsdt(shoppingBalUsdt!)} USDT，阈值 ${formatUsdt(thresholdUsdt)} USDT`
-                              : `Balance ≈ ${formatUsdt(shoppingBalUsdt!)} USDT, threshold ${formatUsdt(thresholdUsdt)} USDT`}
-                          </p>
+                          {shoppingBalUsdt != null && (
+                            <p className="mt-1 text-[10px] text-destructive/80">
+                              {isZh
+                                ? `当前购物余额 ≈ ${formatUsdt(shoppingBalUsdt, 0)} USDT，阈值 ${formatUsdt(thresholdUsdt, 0)} USDT`
+                                : `Balance ≈ ${formatUsdt(shoppingBalUsdt, 0)} USDT, threshold ${formatUsdt(thresholdUsdt, 0)} USDT`}
+                            </p>
+                          )}
                         </div>
                       )}
+
+                      <div className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-xs font-medium text-muted-foreground">{t('remainingShoppingBalance')}</span>
+                          <span className="text-sm font-semibold text-primary">{formatBalance(shoppingBal ?? '0')} NEX</span>
+                        </div>
+                      </div>
 
                       {/* Withdraw button */}
                       <Button
@@ -310,7 +321,7 @@ export default function EarningsPage() {
                         ) : (
                           <ArrowDownToLine className="h-4 w-4" />
                         )}
-                        {t('withdrawBtn')} ({formatBalance(pending, 12, 4)} NEX)
+                        {t('withdrawBtn')} ({formatBalance(pending)} NEX)
                       </Button>
                     </div>
                   )}
@@ -339,28 +350,28 @@ export default function EarningsPage() {
                 <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
                   <div>
                     <p className="text-muted-foreground flex items-center gap-0.5">{t('pendingTotalNex')} <HelpTip helpKey="earnings.pendingTotalNex" iconSize={10} /></p>
-                    <p className="font-medium">{formatBalance(overview.pendingTotalNex, 12, 4)} NEX</p>
+                    <p className="font-medium">{formatBalance(overview.pendingTotalNex)} NEX</p>
                   </div>
                   {BigInt(overview.pendingTotalToken || '0') > BigInt(0) && (
                     <div>
                       <p className="text-muted-foreground">{t('pendingTotalToken')}</p>
-                      <p className="font-medium">{formatBalance(overview.pendingTotalToken, 12, 4)} Token</p>
+                      <p className="font-medium">{formatBalance(overview.pendingTotalToken)} Token</p>
                     </div>
                   )}
                   <div>
                     <p className="text-muted-foreground flex items-center gap-0.5">{t('unallocatedPoolNex')} <HelpTip helpKey="earnings.unallocatedPoolNex" iconSize={10} /></p>
-                    <p className="font-medium">{formatBalance(overview.unallocatedPoolNex, 12, 4)} NEX</p>
+                    <p className="font-medium">{formatBalance(overview.unallocatedPoolNex)} NEX</p>
                   </div>
                   {BigInt(overview.shoppingTotalNex || '0') > BigInt(0) && (
                     <div>
                       <p className="text-muted-foreground flex items-center gap-0.5">{t('shoppingTotalNex')} <HelpTip helpKey="earnings.shoppingTotalNex" iconSize={10} /></p>
-                      <p className="font-medium">{formatBalance(overview.shoppingTotalNex, 12, 4)} NEX</p>
+                      <p className="font-medium">{formatBalance(overview.shoppingTotalNex)} NEX</p>
                     </div>
                   )}
                   {BigInt(overview.shoppingTotalToken || '0') > BigInt(0) && (
                     <div>
                       <p className="text-muted-foreground">{t('shoppingTotalToken')}</p>
-                      <p className="font-medium">{formatBalance(overview.shoppingTotalToken, 12, 4)} Token</p>
+                      <p className="font-medium">{formatBalance(overview.shoppingTotalToken)} Token</p>
                     </div>
                   )}
                 </div>
@@ -409,7 +420,7 @@ export default function EarningsPage() {
                     <span className="text-muted-foreground">{isZh ? '剩余' : 'Remaining'}</span>
                     <span className="font-medium">
                       {expiryStatus.blocksLeft} blocks
-                      {' '}(≈{(expiryStatus.blocksLeft * 6 / 86400).toFixed(1)} {isZh ? '天' : 'd'})
+                      {' '}(≈{Math.round(expiryStatus.blocksLeft * 6 / 86400)} {isZh ? '天' : 'd'})
                     </span>
                   </div>
                 )}
@@ -512,11 +523,11 @@ export default function EarningsPage() {
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div>
                     <p className="text-muted-foreground">{t('pendingAmount')}</p>
-                    <p className="font-semibold">{formatBalance(pending, 12, 4)} NEX</p>
+                    <p className="font-semibold">{formatBalance(pending)} NEX</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground">{t('withdrawnAmount')}</p>
-                    <p className="font-semibold">{formatBalance(withdrawn, 12, 4)} NEX</p>
+                    <p className="font-semibold">{formatBalance(withdrawn)} NEX</p>
                   </div>
                 </div>
               </CardContent>
@@ -537,7 +548,7 @@ export default function EarningsPage() {
                 {BigInt(withdrawn || '0') > BigInt(0) && (
                   <div className="mb-3 rounded-lg bg-success/10 p-3">
                     <p className="text-xs text-muted-foreground">{isZh ? '链上累计提现' : 'Total Withdrawn (on-chain)'}</p>
-                    <p className="text-lg font-bold text-success">{formatBalance(withdrawn, 12, 4)} NEX</p>
+                    <p className="text-lg font-bold text-success">{formatBalance(withdrawn)} NEX</p>
                   </div>
                 )}
                 {/* Chain withdrawal records */}
@@ -555,17 +566,17 @@ export default function EarningsPage() {
                         <div className="flex-1 min-w-0 space-y-0.5">
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-semibold text-success">
-                              +{formatBalance(record.withdrawn, 12, 4)} NEX
+                              +{formatBalance(record.withdrawn)} NEX
                             </span>
                           </div>
                           {BigInt(record.repurchased || '0') > BigInt(0) && (
                             <p className="text-[10px] text-muted-foreground">
-                              {isZh ? '回购' : 'Repurchased'}: {formatBalance(record.repurchased, 12, 4)} NEX
+                              {isZh ? '回购' : 'Repurchased'}: {formatBalance(record.repurchased)} NEX
                             </p>
                           )}
                           {BigInt(record.bonus || '0') > BigInt(0) && (
                             <p className="text-[10px] text-amber-500">
-                              {isZh ? '奖励' : 'Bonus'}: +{formatBalance(record.bonus, 12, 4)} NEX
+                              {isZh ? '奖励' : 'Bonus'}: +{formatBalance(record.bonus)} NEX
                             </p>
                           )}
                         </div>
@@ -574,7 +585,7 @@ export default function EarningsPage() {
                             #{record.blockNumber}
                           </p>
                           <p className="text-[10px] text-muted-foreground">
-                            {formatBalance(record.totalAmount, 12, 4)} NEX
+                            {formatBalance(record.totalAmount)} NEX
                           </p>
                         </div>
                       </div>

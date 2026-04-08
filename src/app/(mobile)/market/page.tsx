@@ -51,7 +51,7 @@ export default function MarketPage() {
 
   const [prefilledPrice, setPrefilledPrice] = useState('');
   const handlePriceClick = useCallback((rawPrice: string) => {
-    setPrefilledPrice(formatBalance(rawPrice));
+    setPrefilledPrice(formatBalance(rawPrice, 12, 12).replace(/0+$/, '').replace(/\.$/, ''));
   }, []);
   const handlePrefilledUsed = useCallback(() => {
     setPrefilledPrice('');

@@ -13,7 +13,7 @@ import {
   usePlaceBuyOrder, usePlaceSellOrder,
   useMarketBuy, useMarketSell,
 } from '@/hooks/use-market';
-import { nexToRaw, isTxBusy } from '@/lib/utils/chain-helpers';
+import { nexToRaw, isTxBusy, estimateTotal } from '@/lib/utils/chain-helpers';
 
 interface TradeFormProps {
   entityId: number | null;
@@ -91,7 +91,7 @@ export function TradeForm({ entityId, prefilledPrice, onPrefilledPriceUsed }: Tr
   };
 
   const estimatedTotal = price && amount
-    ? (parseFloat(price) * parseFloat(amount)).toFixed(0)
+    ? estimateTotal(price, amount, 12, 12, 0)
     : null;
 
   return (

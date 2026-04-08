@@ -142,7 +142,9 @@ export function useSingleLineMemberStats(entityId: number | null, address: strin
   );
 }
 
-/** Fetch all single-line commission records from core module (MemberCommissionOrderIds → OrderCommissionRecords) */
+/** Fetch all single-line commission records from core module
+ *  (MemberCommissionOrderIds → OrderCommissionRecords + OrderShoppingCommissionRecords)
+ *  Shopping balance orders store records in a parallel storage map; both must be queried. */
 export function useSingleLineCommissionRecords(entityId: number | null, address: string | null) {
   return useEntityQuery<CommissionRecord[]>(
     ['singleLineCommissionRecords', entityId, address],
@@ -152,12 +154,18 @@ export function useSingleLineCommissionRecords(entityId: number | null, address:
       const orderIdsRaw = await (api.query as any).commissionCore.memberCommissionOrderIds(entityId, address);
       const orderIds: number[] = (orderIdsRaw.toJSON() ?? []).map(Number);
       if (orderIds.length === 0) return [];
-      // Step 2: Fetch commission records for each order and filter to single-line types
+      // Step 2: Fetch commission records for each order from BOTH storage maps
       const records: CommissionRecord[] = [];
       for (const orderId of orderIds) {
-        const raw = await (api.query as any).commissionCore.orderCommissionRecords(orderId);
-        const items: any[] = raw.toJSON() ?? [];
-        for (const r of items) {
+        const [nexRaw, shoppingRaw] = await Promise.all([
+          (api.query as any).commissionCore.orderCommissionRecords(orderId),
+          (api.query as any).commissionCore.orderShoppingCommissionRecords(orderId),
+        ]);
+        const allItems: any[] = [
+          ...(nexRaw.toJSON() ?? []),
+          ...(shoppingRaw.toJSON() ?? []),
+        ];
+        for (const r of allItems) {
           const ct = parseCommissionType(r.commissionType ?? r.commission_type);
           if (ct !== 'SingleLineUpline' && ct !== 'SingleLineDownline') continue;
           const beneficiary = r.beneficiary ?? '';
@@ -356,10 +364,16 @@ export function useMultiLevelSummaryStats(entityId: number | null, address: stri
 // ======================== Pool Reward ========================
 
 function parsePoolRewardLevelRules(data: any): [number, number][] {
-  return (data.levelRules ?? data.level_rules ?? data.levelRatios ?? data.level_ratios ?? []).map((item: any) => [
-    Number(item?.[0] ?? 0),
-    Number(item?.[1] ?? 0),
-  ]);
+  return (data.levelRules ?? data.level_rules ?? data.levelRatios ?? data.level_ratios ?? []).map((item: any) => {
+    const levelId = Number(item?.[0] ?? 0);
+    const rule = item?.[1];
+    // level_rules on-chain is Vec<(u8, LevelClaimRule)> where LevelClaimRule is a struct,
+    // but may also be Vec<(u8, u16)> in older configs. Handle both.
+    const ratio = typeof rule === 'object' && rule !== null
+      ? Number(rule.baseCapPercent ?? rule.base_cap_percent ?? 0)
+      : Number(rule ?? 0);
+    return [levelId, ratio] as [number, number];
+  });
 }
 
 function toOptionalString(value: unknown): string | null {
