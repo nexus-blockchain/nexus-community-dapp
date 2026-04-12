@@ -19,8 +19,8 @@ import { useIpfsContent } from '@/hooks/use-ipfs-content';
 import { useEntityMutation } from '@/hooks/use-entity-mutation';
 import { useShoppingBalance } from '@/hooks/use-loyalty';
 import { useNexPrice } from '@/hooks/use-nex-price';
-import { formatBalance, formatUsdt } from '@/lib/utils/chain-helpers';
-import { useWalletStore, useEntityStore } from '@/stores';
+import { formatBalance, formatUsdt, applySlippageBps } from '@/lib/utils/chain-helpers';
+import { useWalletStore } from '@/stores';
 
 async function isValidSS58(address: string): Promise<boolean> {
   try {
@@ -42,7 +42,6 @@ function OrderCreateContent() {
   const productId = productParam != null ? Number(productParam) : null;
   const quantity = Number(searchParams.get('quantity') || 1);
   const { address } = useWalletStore();
-  const { currentEntityId } = useEntityStore();
   const { data: product, isLoading } = useProduct(productId != null && !isNaN(productId) ? productId : null);
   const { data: shop } = useShop(product?.shopId ?? null);
   const shopEntityId = shop?.entityId ?? null;
@@ -53,11 +52,10 @@ function OrderCreateContent() {
   const isMember = !!memberInfo;
   const needsAutoRegister = (isMembersOnly || isLevelGated) && !isMember;
   const { data: productName } = useIpfsContent(product?.nameCid);
-  const { data: shoppingBalanceRaw } = useShoppingBalance(currentEntityId, address);
+  const { data: shoppingBalanceRaw } = useShoppingBalance(shopEntityId, address);
   const { toNex, toUsdt } = useNexPrice();
 
-  const [note, setNote] = useState('');
-  const [paymentAsset, setPaymentAsset] = useState<'Native' | 'EntityToken'>('Native');
+  const [paymentAsset] = useState<'Native'>('Native');
   const [shippingAddr, setShippingAddr] = useState('');
   const [referrer, setReferrer] = useState('');
   const [useShoppingBal, setUseShoppingBal] = useState(false);
@@ -90,7 +88,14 @@ function OrderCreateContent() {
     }
     return product ? BigInt(product.price) * BigInt(quantity) : BigInt(0);
   }, [unitNexDynamic, product, quantity]);
+  const ORDER_SLIPPAGE_BPS = 300;
+  const quantityValid = Number.isSafeInteger(quantity) && quantity > 0;
+  const priceReady = !hasUsdtPrice || !!unitNexDynamic;
+  const entityContextReady = shopEntityId != null;
   const totalUsdt = hasUsdtPrice ? product.usdtPrice * quantity : null;
+  const maxNexAmount = hasUsdtPrice && priceReady
+    ? applySlippageBps(totalNex.toString(), ORDER_SLIPPAGE_BPS)
+    : null;
 
   // Shopping balance to spend: capped at min(balance, totalNex - MIN_NATIVE).
   // Chain constraints for Digital products (auto-complete on creation):
@@ -112,25 +117,26 @@ function OrderCreateContent() {
     return cap.toString();
   }, [useShoppingBal, shoppingBalanceRaw, totalNex, MIN_NATIVE_RESERVE]);
 
+  const isBusy = txState.status === 'signing' || txState.status === 'broadcasting' || txState.status === 'inBlock';
+
+  const canSubmit = !!product && !!address && quantityValid && entityContextReady && priceReady && !referrerError && !isOwnProduct && !isBusy && txState.status !== 'finalized';
+
   const handleSubmit = async () => {
-    if (!product || !address) return;
+    if (!product || !address || !canSubmit) return;
     if (referrer && !(await isValidSS58(referrer))) return;
     await mutate([
       product.id,                          // product_id
       quantity,                            // quantity
       shippingAddr || null,                // shipping_cid
-      paymentAsset === 'EntityToken'       // use_tokens: Option<Balance>
-        ? totalNex.toString() : null,
+      null,                                // use_tokens: always null (no entity token)
       useShoppingBal && shoppingBalSpend   // payment_asset: Option<PaymentAsset>
         ? 'ShoppingBalance' : paymentAsset,
-      note || null,                        // note_cid
+      null,                                // note_cid
       referrer || null,                    // referrer
-      null,                                // max_nex_amount (no slippage limit)
+      maxNexAmount,                        // max_nex_amount (slippage-capped for USDT-priced products)
       null,                                // max_token_amount (no slippage limit)
     ]);
   };
-
-  const isBusy = txState.status === 'signing' || txState.status === 'broadcasting' || txState.status === 'inBlock';
 
   if (isLoading) {
     return <Skeleton className="h-48 w-full" />;
@@ -237,18 +243,10 @@ function OrderCreateContent() {
         <CardContent>
           <div className="flex gap-3">
             <Button
-              variant={paymentAsset === 'Native' ? 'default' : 'outline'}
+              variant="default"
               size="sm"
-              onClick={() => setPaymentAsset('Native')}
             >
               {t('nativeToken')}
-            </Button>
-            <Button
-              variant={paymentAsset === 'EntityToken' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setPaymentAsset('EntityToken')}
-            >
-              {t('entityToken')}
             </Button>
           </div>
         </CardContent>
@@ -297,54 +295,6 @@ function OrderCreateContent() {
         </CardContent>
       </Card>
 
-      {/* Shopping Balance */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Wallet className="h-4 w-4" />
-            {t('useShoppingBalance')}
-            <HelpTip helpKey="order.useShoppingBalance" />
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">
-                {t('shoppingBalanceAvailable', {
-                  amount: formatBalance(shoppingBalanceRaw ?? '0'),
-                })}
-              </p>
-              {(() => {
-                const usdtVal = toUsdt(shoppingBalanceRaw ?? '0');
-                return usdtVal ? (
-                  <p className="text-xs text-muted-foreground">≈ ${formatUsdt(usdtVal)}</p>
-                ) : null;
-              })()}
-            </div>
-            <Button
-              variant={useShoppingBal ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setUseShoppingBal(!useShoppingBal)}
-            >
-              {useShoppingBal ? t('useShoppingBalance') : t('useShoppingBalance')}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Note */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">{t('note')} <HelpTip helpKey="order.note" /></CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Input
-            placeholder={t('notePlaceholder')}
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-          />
-        </CardContent>
-      </Card>
 
       {/* Tx Status */}
       {txState.status !== 'idle' && (
@@ -397,7 +347,7 @@ function OrderCreateContent() {
         className="w-full"
         size="lg"
         onClick={handleSubmit}
-        disabled={isBusy || !address || txState.status === 'finalized' || !!referrerError || isOwnProduct}
+        disabled={!canSubmit}
       >
         {isBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
         {!address ? t('connectFirst') : isBusy ? t('processing') : t('confirmOrder')}

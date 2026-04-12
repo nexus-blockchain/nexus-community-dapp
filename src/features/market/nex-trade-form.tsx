@@ -14,7 +14,7 @@ import {
   useNexAcceptBuyOrder, useNexReserveSellOrder,
   useNexOrderBook,
 } from '@/hooks/use-nex-global-market';
-import { nexToRaw, usdtToRaw, formatNexPrice, formatUsdt, isTxBusy, estimateTotal } from '@/lib/utils/chain-helpers';
+import { validateAmount, formatNexPrice, formatUsdt, isTxBusy, estimateTotal, isValidTronAddress } from '@/lib/utils';
 import type { NexMarketOrder } from '@/lib/types';
 
 function isBusy(m: { txState: { status: string } }): boolean {
@@ -114,21 +114,43 @@ function LimitOrderForm({ address }: { address: string | null }) {
   const activeMutation = side === 'Buy' ? placeBuy : placeSell;
   const busy = isBusy(activeMutation);
 
+  const priceValidation = useMemo(() => validateAmount(price, 'USDT'), [price]);
+  const amountValidation = useMemo(() => validateAmount(amount, 'NEX'), [amount]);
+  const minFillValidation = useMemo(
+    () => (minFill.trim() ? validateAmount(minFill, 'NEX') : null),
+    [minFill],
+  );
+  const tronValid = tronAddr.trim() !== '' && isValidTronAddress(tronAddr);
+  const minFillWithinAmount = !minFillValidation?.valid
+    ? true
+    : minFillValidation.value! <= amountValidation.value!;
+
   const handleSubmit = async () => {
-    if (!price || !amount || !tronAddr) return;
-    const priceRaw = usdtToRaw(price);
-    const amountRaw = nexToRaw(amount).toString();
+    if (!priceValidation.valid || !amountValidation.valid || !tronValid) return;
+    if (side === 'Sell' && minFill.trim()) {
+      if (!minFillValidation?.valid || !minFillWithinAmount) return;
+    }
+
+    const priceRaw = priceValidation.value!.toString();
+    const amountRaw = amountValidation.value!.toString();
 
     if (side === 'Buy') {
-      await placeBuy.mutate([amountRaw, priceRaw, tronAddr]);
+      await placeBuy.mutate([amountRaw, priceRaw, tronAddr.trim()]);
     } else {
-      const minFillRaw = minFill ? nexToRaw(minFill).toString() : null;
-      await placeSell.mutate([amountRaw, priceRaw, tronAddr, minFillRaw]);
+      const minFillRaw = minFillValidation?.valid ? minFillValidation.value!.toString() : null;
+      await placeSell.mutate([amountRaw, priceRaw, tronAddr.trim(), minFillRaw]);
     }
     setPrice('');
     setAmount('');
     setMinFill('');
   };
+
+  const canSubmit = !!address
+    && !busy
+    && priceValidation.valid
+    && amountValidation.valid
+    && tronValid
+    && (side !== 'Sell' || !minFill.trim() || (!!minFillValidation?.valid && minFillWithinAmount));
 
   const estimatedUsdt = price && amount
     ? estimateTotal(price, amount, 6, 12, 2)
@@ -212,7 +234,7 @@ function LimitOrderForm({ address }: { address: string | null }) {
 
       <Button
         className={`w-full ${side === 'Buy' ? 'bg-success hover:bg-success/90 text-success-foreground' : 'bg-destructive hover:bg-destructive/90'}`}
-        disabled={!price || !amount || !tronAddr || !address || busy}
+        disabled={!canSubmit}
         onClick={handleSubmit}
       >
         {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -252,7 +274,7 @@ function TradeWorkflowForm({ address, prefill, onPrefillUsed }: {
         helpKey="acceptBuyOrder"
         fields={['orderId', 'amount', 'tron']}
         useMutation={useNexAcceptBuyOrder}
-        buildParams={(orderId, amount, tronAddr) => [Number(orderId), amount ? nexToRaw(amount).toString() : null, tronAddr]}
+        buildParams={({ orderId, amountRaw, tron }) => [orderId, amountRaw, tron]}
         disabled={!address}
         initialValues={acceptBuyPrefill ? { ...acceptBuyPrefill } : undefined}
         onInitialValuesUsed={onPrefillUsed}
@@ -264,7 +286,7 @@ function TradeWorkflowForm({ address, prefill, onPrefillUsed }: {
         helpKey="reserveSellOrder"
         fields={['orderId', 'amount', 'tron']}
         useMutation={useNexReserveSellOrder}
-        buildParams={(orderId, amount, tronAddr) => [Number(orderId), amount ? nexToRaw(amount).toString() : null, tronAddr]}
+        buildParams={({ orderId, amountRaw, tron }) => [orderId, amountRaw, tron]}
         disabled={!address}
         initialValues={reserveSellPrefill ? { ...reserveSellPrefill } : undefined}
         onInitialValuesUsed={onPrefillUsed}
@@ -286,7 +308,7 @@ interface WorkflowActionProps {
   helpKey: string;
   fields: FieldType[];
   useMutation: () => ReturnType<typeof useNexAcceptBuyOrder>;
-  buildParams: (...args: string[]) => unknown[];
+  buildParams: (validated: { orderId: number; amountRaw: string | null; tron: string }) => unknown[];
   disabled?: boolean;
   initialValues?: Record<string, string>;
   onInitialValuesUsed?: () => void;
@@ -338,12 +360,26 @@ function WorkflowAction({ icon, label, helpKey, fields, useMutation: useMut, bui
     tron: { label: tn('tronAddress'), placeholder: tn('tronPlaceholder') },
   };
 
-  const requiredFields = fields.filter((f) => f !== 'amount');
-  const canSubmit = requiredFields.every((f) => values[f]?.trim()) && !disabled && !busy;
+  const trimmedOrderId = values.orderId?.trim() ?? '';
+  const orderIdValid = /^\d+$/.test(trimmedOrderId) && Number(trimmedOrderId) > 0 && Number.isSafeInteger(Number(trimmedOrderId));
+  const amountValidation = useMemo(
+    () => (values.amount?.trim() ? validateAmount(values.amount, 'NEX') : null),
+    [values.amount],
+  );
+  const tronValid = !!values.tron?.trim() && isValidTronAddress(values.tron);
+
+  const canSubmit = !disabled
+    && !busy
+    && orderIdValid
+    && tronValid
+    && (!values.amount?.trim() || !!amountValidation?.valid);
 
   const handleSubmit = async () => {
-    const args = fields.map((f) => values[f] ?? '');
-    await mutation.mutate(buildParams(...args));
+    if (!canSubmit) return;
+
+    const orderId = Number(trimmedOrderId);
+    const amountRaw = amountValidation?.valid ? amountValidation.value!.toString() : null;
+    await mutation.mutate(buildParams({ orderId, amountRaw, tron: values.tron.trim() }));
     setValues({});
   };
 

@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import { ApiPromise, WsProvider } from '@polkadot/api';
-import { getConfiguredEndpoints, getSeedEndpoints, NODE_HEALTH_CONFIG } from './constants';
+import { getConfiguredEndpoints, getSeedEndpoints, NODE_HEALTH_CONFIG, filterAllowedEndpoints } from './constants';
 import {
   discoverPeers,
   probeEndpointsBatch,
@@ -98,6 +98,7 @@ export function ApiProvider({
   const recordProbeFailure = useNodeHealthStore((s) => s.recordProbeFailure);
 
   const endpointsRef = useRef<string[]>([]);
+  const discoveredEndpointsRef = useRef<string[]>([]);
 
   // -----------------------------------------------------------------------
   // Helper: create a WsProvider + ApiPromise connection
@@ -108,6 +109,12 @@ export function ApiProvider({
       if (apiRef.current) {
         apiRef.current.disconnect().catch(() => {});
         apiRef.current = null;
+      }
+
+      if (ordered.length === 0) {
+        setConnectionStatus('error');
+        setError('No valid WebSocket endpoints configured');
+        return;
       }
 
       setConnectionStatus('connecting');
@@ -154,20 +161,25 @@ export function ApiProvider({
   // -----------------------------------------------------------------------
   const connect = useCallback(() => {
     const seeds = getSeedEndpoints();
-    const cached = loadCachedNodes().map((n) => n.endpoint);
-    const endpoints = endpoint ? [endpoint] : getConfiguredEndpoints();
-    endpointsRef.current = endpoints;
+    const cached = filterAllowedEndpoints(loadCachedNodes().map((n) => n.endpoint));
+    const trustedEndpoints = endpoint ? filterAllowedEndpoints([endpoint]) : getConfiguredEndpoints();
+    endpointsRef.current = trustedEndpoints;
+    discoveredEndpointsRef.current = cached.filter((ep) => !trustedEndpoints.includes(ep));
 
-    // Initialize store: seeds vs discovered
+    // Initialize store: trusted auto-connect endpoints vs discovered-only endpoints
     const seedSet = new Set(seeds);
-    const seedEndpoints = endpoints.filter((e) => seedSet.has(e));
-    const discoveredEndpoints = endpoints.filter((e) => !seedSet.has(e));
-    initNodes(seedEndpoints.length > 0 ? seedEndpoints : endpoints, discoveredEndpoints);
-    setDiscoveredNodeCount(cached.length);
+    const seedEndpoints = trustedEndpoints.filter((e) => seedSet.has(e));
+    const nonSeedTrustedEndpoints = trustedEndpoints.filter((e) => !seedSet.has(e));
+    const discoveredEndpoints = discoveredEndpointsRef.current.filter((e) => !trustedEndpoints.includes(e));
+    initNodes(
+      seedEndpoints.length > 0 ? seedEndpoints : trustedEndpoints,
+      [...nonSeedTrustedEndpoints, ...discoveredEndpoints],
+    );
+    setDiscoveredNodeCount(discoveredEndpointsRef.current.length);
 
     // Read latest values from store instead of stale closure
     const currentState = useNodeHealthStore.getState();
-    const ordered = orderEndpoints(endpoints, currentState.preferredEndpoint, currentState.nodes);
+    const ordered = orderEndpoints(trustedEndpoints, currentState.preferredEndpoint, currentState.nodes);
     createConnection(ordered);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [endpoint]);
@@ -224,9 +236,7 @@ export function ApiProvider({
 
     const bgProbe = async () => {
       const currentNodes = useNodeHealthStore.getState().nodes;
-      const inactiveEndpoints = currentNodes
-        .filter((n) => n.endpoint !== activeEndpoint)
-        .map((n) => n.endpoint);
+      const inactiveEndpoints = endpointsRef.current.filter((ep) => ep !== activeEndpoint);
 
       if (inactiveEndpoints.length === 0) return;
 
@@ -287,7 +297,7 @@ export function ApiProvider({
 
       setIsDiscovering(true);
       try {
-        const candidateEndpoints = await discoverPeers(currentApi);
+        const candidateEndpoints = filterAllowedEndpoints(await discoverPeers(currentApi));
         if (candidateEndpoints.length === 0) return;
 
         // Filter out already-known endpoints
@@ -310,10 +320,11 @@ export function ApiProvider({
             addNodeToStore(ep, 'discovered');
           }
 
-          // Update endpoints ref
+          // Keep discovered endpoints visible and probed, but do not add them to
+          // the trusted auto-connect / auto-switch candidate set.
           for (const ep of reachable) {
-            if (!endpointsRef.current.includes(ep)) {
-              endpointsRef.current.push(ep);
+            if (!discoveredEndpointsRef.current.includes(ep)) {
+              discoveredEndpointsRef.current.push(ep);
             }
           }
 
@@ -397,12 +408,16 @@ export function ApiProvider({
   // -----------------------------------------------------------------------
   const addManualNode = useCallback(
     async (ep: string): Promise<boolean> => {
-      const results = await probeEndpointsBatch([ep], 1, NODE_HEALTH_CONFIG.discoveryProbeTimeout);
+      const allowedEndpoints = filterAllowedEndpoints([ep]);
+      if (allowedEndpoints.length === 0) return false;
+
+      const [allowedEndpoint] = allowedEndpoints;
+      const results = await probeEndpointsBatch([allowedEndpoint], 1, NODE_HEALTH_CONFIG.discoveryProbeTimeout);
       if (results.length === 0) return false;
 
-      addNodeToStore(ep, 'manual');
-      if (!endpointsRef.current.includes(ep)) {
-        endpointsRef.current.push(ep);
+      addNodeToStore(allowedEndpoint, 'manual');
+      if (!endpointsRef.current.includes(allowedEndpoint)) {
+        endpointsRef.current.push(allowedEndpoint);
       }
       recordProbeSuccess(results[0].endpoint, results[0].latencyMs, results[0].blockHeight);
       return true;

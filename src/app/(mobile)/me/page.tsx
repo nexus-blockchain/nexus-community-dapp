@@ -10,11 +10,10 @@ import { PageContainer } from '@/components/layout/page-container';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
 import {
   Wallet, Award, Gift, Settings, ShoppingCart,
-  Copy, Check, ChevronRight, Blocks,
-  Send, QrCode, Clock, RefreshCw, Network, Users, Info, Landmark,
+  Copy, Check, ChevronRight,
+  Clock, RefreshCw, Network, Users, Info, Landmark,
 } from 'lucide-react';
 import { useWalletStore, useEntityStore } from '@/stores';
 import { useNodeHealthStore, type NodeStatus } from '@/stores/node-health-store';
@@ -25,7 +24,6 @@ import { useBuyerOrders } from '@/hooks/use-order';
 import { useNexBalance } from '@/hooks/use-nex-balance';
 import { formatBalance, shortAddress, formatUsdt } from '@/lib/utils/chain-helpers';
 import { useNexPrice } from '@/hooks/use-nex-price';
-import { TransferDialog, ReceiveDialog } from '@/components/wallet/wallet-dialogs';
 import { TreasuryCard } from '@/features/profile';
 import { useIsEntityOwner } from '@/hooks/use-treasury';
 
@@ -143,7 +141,7 @@ function MemberNetworkSection() {
             </div>
 
             {/* Referral stats row */}
-            <div className="grid grid-cols-4 gap-1 text-center">
+            <div className="grid grid-cols-3 gap-1 text-center">
               <div>
                 <p className="text-[10px] text-muted-foreground">{t('directReferrals')}</p>
                 <p className="text-base font-bold text-primary">{member.directReferrals}</p>
@@ -192,8 +190,6 @@ export default function MePage() {
   const isEntityOwner = useIsEntityOwner();
 
   const [copied, setCopied] = useState(false);
-  const [showTransfer, setShowTransfer] = useState(false);
-  const [showReceive, setShowReceive] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const isLocal = source === 'local';
 
@@ -221,12 +217,8 @@ export default function MePage() {
   };
 
   const menuItems = [
+    { label: t('profile.txHistory'), icon: Clock, href: '/me/transactions' },
     { label: t('member.networkTitle'), icon: Network, href: '/member/network' },
-    { label: t('profile.walletManagement'), icon: Wallet, href: '/me/wallet' },
-    { label: t('profile.myOrders'), icon: ShoppingCart, href: '/me/orders' },
-    { label: t('profile.pointsManagement'), icon: Gift, href: '/loyalty/points' },
-    { label: t('profile.governance'), icon: Landmark, href: '/governance' },
-    { label: t('profile.chainInfo'), icon: Blocks, href: '/chain' },
     { label: t('profile.settings'), icon: Settings, href: '/settings' },
     { label: t('profile.aboutUs'), icon: Info, href: '/about' },
   ];
@@ -314,36 +306,11 @@ export default function MePage() {
             )}
           </Link>
 
-          {/* Quick Action 4-Grid */}
-          {isConnected && (
-            <div className="grid grid-cols-4 gap-2">
-              <Button variant="outline" className="h-auto py-3 flex-col gap-1.5" onClick={() => setShowTransfer(true)}>
-                <Send className="h-5 w-5 text-primary" />
-                <span className="text-[11px]">{t('wallet.transfer')}</span>
-              </Button>
-              <Button variant="outline" className="h-auto py-3 flex-col gap-1.5" onClick={() => setShowReceive(true)}>
-                <QrCode className="h-5 w-5 text-green-600" />
-                <span className="text-[11px]">{t('wallet.receive')}</span>
-              </Button>
-              <Link href="/me/transactions">
-                <Button variant="outline" className="h-auto py-3 flex-col gap-1.5 w-full">
-                  <Clock className="h-5 w-5 text-blue-600" />
-                  <span className="text-[11px]">{t('profile.txHistory')}</span>
-                </Button>
-              </Link>
-              <Link href="/chain">
-                <Button variant="outline" className="h-auto py-3 flex-col gap-1.5 w-full">
-                  <Blocks className="h-5 w-5 text-amber-600" />
-                  <span className="text-[11px]">{t('profile.chainInfo')}</span>
-                </Button>
-              </Link>
-            </div>
-          )}
-
           {/* Network Status Badge */}
           {isConnected && activeEndpoint && (
             <Link href="/chain">
               <div className="flex items-center gap-2 rounded-lg bg-secondary/50 border px-3 py-2 text-xs transition-colors hover:border-primary/30">
+                <span className="text-muted-foreground">{t('chainInfo.currentNode')}</span>
                 <span className={`h-2 w-2 rounded-full ${statusDotColor[nodeStatus]}`} />
                 <span className="font-mono text-muted-foreground truncate">{truncateEndpoint(activeEndpoint)}</span>
                 <span className="text-muted-foreground">·</span>
@@ -416,9 +383,6 @@ export default function MePage() {
         </div>
         )}
       </PageContainer>
-
-      <TransferDialog open={showTransfer} onOpenChange={setShowTransfer} />
-      <ReceiveDialog open={showReceive} onOpenChange={setShowReceive} />
     </>
   );
 }

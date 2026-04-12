@@ -16,6 +16,7 @@ function loadLocale(): Locale {
 
     const saved = localStorage.getItem(STORAGE_KEY) as Locale | null;
     if (saved && locales.includes(saved)) return saved;
+    if (saved) localStorage.setItem(STORAGE_KEY, defaultLocale);
   } catch {}
   return defaultLocale;
 }

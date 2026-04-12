@@ -2,22 +2,22 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Store, BarChart3, Coins, User } from 'lucide-react';
+import { Home, Store, BarChart3, Coins, User, Wallet } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { useTranslations } from 'next-intl';
 
 const tabDefs = [
   { id: 'community', key: 'community' as const, icon: Home, href: '/' },
-  { id: 'mall', key: 'mall' as const, icon: Store, href: '/mall' },
   { id: 'market', key: 'market' as const, icon: BarChart3, href: '/market' },
   { id: 'earnings', key: 'earnings' as const, icon: Coins, href: '/earnings' },
+  { id: 'wallet', key: 'wallet' as const, icon: Wallet, href: '/me/wallet' },
   { id: 'me', key: 'me' as const, icon: User, href: '/me' },
 ] as const;
 
 function getActiveTab(pathname: string): string {
-  if (pathname.includes('/shop') || pathname.includes('/mall') || pathname.includes('/product')) return 'mall';
   if (pathname.includes('/market')) return 'market';
   if (pathname.includes('/earnings')) return 'earnings';
+  if (pathname === '/me/wallet' || pathname.startsWith('/me/wallet/')) return 'wallet';
   if (pathname.includes('/me')) return 'me';
   return 'community';
 }

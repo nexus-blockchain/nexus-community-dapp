@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
-import { Capacitor } from '@capacitor/core';
 import { copyToClipboard } from '@/lib/utils/clipboard';
 import { useToast } from '@/components/ui/use-toast';
 import { MobileHeader } from '@/components/layout/mobile-header';
@@ -17,12 +16,12 @@ import {
 import {
   Wallet, Copy, Check, LogOut, Plus, Download,
   ArrowRightLeft, Eye, EyeOff, Send, RefreshCw,
-  QrCode, Key, Pencil, ShieldAlert, Trash2, Lock, Coins, Loader2,
+  QrCode, Key, ShieldAlert, Trash2, Lock, Coins, Loader2, ScanLine,
 } from 'lucide-react';
 import { useWalletStore } from '@/stores';
 import { useLocalAccountsStore } from '@/stores/local-accounts-store';
 import { useEntityStore } from '@/stores/entity-store';
-import { useWallet, type UnifiedAccount } from '@/hooks/use-wallet';
+import { useWallet } from '@/hooks/use-wallet';
 import { useLocalWallet } from '@/hooks/use-local-wallet';
 import { useNexBalance } from '@/hooks/use-nex-balance';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
@@ -32,6 +31,7 @@ import { validatePassword } from '@/lib/utils/password-validation';
 import { TransferDialog, ReceiveDialog } from '@/components/wallet/wallet-dialogs';
 import { useTokenBalance, useTokenMetadata, useTokenConfig } from '@/hooks/use-token';
 import { useNexPrice } from '@/hooks/use-nex-price';
+import { useShoppingBalance } from '@/hooks/use-loyalty';
 
 // ─────────────────────────────────────────────
 // Create Wallet Dialog
@@ -345,154 +345,11 @@ function ImportWalletDialog({
 }
 
 // ─────────────────────────────────────────────
-// Switch Account Dialog (with rename support)
-// ─────────────────────────────────────────────
-function SwitchAccountDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
-  const t = useTranslations('wallet');
-  const { address: activeAddress, connect, getAccounts } = useWallet();
-  const renameAccount = useLocalAccountsStore((s) => s.renameAccount);
-  const removeAccount = useLocalAccountsStore((s) => s.removeAccount);
-  const [accounts, setAccounts] = useState<UnifiedAccount[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [switching, setSwitching] = useState<string | null>(null);
-  const [renamingAddress, setRenamingAddress] = useState<string | null>(null);
-  const [renameValue, setRenameValue] = useState('');
-  const [deletingAddress, setDeletingAddress] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    setLoading(true);
-    getAccounts().then(setAccounts).finally(() => setLoading(false));
-  }, [open, getAccounts]);
-
-  const handleSwitch = async (account: UnifiedAccount) => {
-    setSwitching(account.address);
-    try { await connect(account); onOpenChange(false); } catch (e) { console.error('Switch failed:', e); }
-    finally { setSwitching(null); }
-  };
-
-  const handleRenameStart = (account: UnifiedAccount) => {
-    setRenamingAddress(account.address);
-    setRenameValue(account.name);
-  };
-
-  const handleRenameConfirm = () => {
-    if (!renamingAddress || !renameValue.trim()) return;
-    renameAccount(renamingAddress, renameValue.trim());
-    // Update account in local list
-    setAccounts((prev) =>
-      prev.map((a) => a.address === renamingAddress ? { ...a, name: renameValue.trim() } : a)
-    );
-    // If the renamed account is currently connected, update the wallet store
-    if (renamingAddress === activeAddress) {
-      useWalletStore.getState().setWallet(renamingAddress, renameValue.trim(), 'local');
-    }
-    setRenamingAddress(null);
-    setRenameValue('');
-  };
-
-  const handleDeleteConfirm = (address: string) => {
-    removeAccount(address);
-    setAccounts((prev) => prev.filter((a) => a.address !== address));
-    setDeletingAddress(null);
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>{t('switchAccountTitle')}</DialogTitle>
-          <DialogDescription>{t('switchAccountDesc')}</DialogDescription>
-        </DialogHeader>
-        <div className="max-h-[60vh] overflow-y-auto space-y-2">
-          {loading ? (
-            <div className="py-8 text-center text-sm text-muted-foreground">{t('loading')}</div>
-          ) : accounts.length === 0 ? (
-            <div className="py-8 text-center text-sm text-muted-foreground">{t('noAccounts')}</div>
-          ) : (
-            accounts.map((account) => {
-              const isActive = account.address === activeAddress;
-              const isRenaming = renamingAddress === account.address;
-              return (
-                <div key={`${account.source}-${account.address}`}
-                  className={`flex items-center gap-3 rounded-lg p-3 transition-colors ${isActive ? 'bg-primary/10 border border-primary/30' : 'bg-secondary'}`}>
-                  <button
-                    className="flex flex-1 items-center gap-3 text-left min-w-0"
-                    onClick={() => !isActive && handleSwitch(account)}
-                    disabled={isActive || switching === account.address}>
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary">
-                      {account.name.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      {isRenaming ? (
-                        <div className="flex items-center gap-1">
-                          <Input
-                            className="h-7 text-sm"
-                            value={renameValue}
-                            onChange={(e) => setRenameValue(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && handleRenameConfirm()}
-                            autoFocus
-                          />
-                          <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={handleRenameConfirm}>
-                            <Check className="h-3.5 w-3.5 text-success" />
-                          </Button>
-                        </div>
-                      ) : (
-                        <>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium truncate">{account.name}</span>
-                            <Badge variant={account.source === 'local' ? 'default' : 'outline'} className="text-[10px] px-1.5 py-0">
-                              {account.source === 'local' ? t('local') : account.source}
-                            </Badge>
-                          </div>
-                          <p className="font-mono text-xs text-muted-foreground">{shortAddress(account.address)}</p>
-                        </>
-                      )}
-                    </div>
-                  </button>
-                  <div className="flex items-center gap-1 shrink-0">
-                    {deletingAddress === account.address ? (
-                      <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setDeletingAddress(null)}>
-                          <span className="text-xs">{t('cancel')}</span>
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDeleteConfirm(account.address)}>
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <>
-                        {account.source === 'local' && !isRenaming && (
-                          <button className="p-1 text-muted-foreground hover:text-foreground" onClick={() => handleRenameStart(account)}>
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                        {account.source === 'local' && !isActive && !isRenaming && (
-                          <button className="p-1 text-muted-foreground hover:text-destructive" onClick={() => setDeletingAddress(account.address)}>
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                        {isActive && <Check className="h-4 w-4 text-primary" />}
-                        {switching === account.address && <RefreshCw className="h-4 w-4 animate-spin" />}
-                      </>
-                    )}
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// ─────────────────────────────────────────────
 // Export Mnemonic Dialog
 // ─────────────────────────────────────────────
 function ExportMnemonicDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const t = useTranslations('wallet');
-  const { address, source } = useWalletStore();
+  const { address } = useWalletStore();
   const { exportMnemonic } = useLocalWallet();
   const [password, setPassword] = useState('');
   const [mnemonicWords, setMnemonicWords] = useState<string[]>([]);
@@ -500,7 +357,6 @@ function ExportMnemonicDialog({ open, onOpenChange }: { open: boolean; onOpenCha
   const [error, setError] = useState('');
   const [unlocking, setUnlocking] = useState(false);
   const [copied, setCopied] = useState(false);
-  const isLocal = source === 'local';
 
   const resetState = () => { setPassword(''); setMnemonicWords([]); setNotStored(false); setError(''); setUnlocking(false); setCopied(false); };
   const handleOpenChange = (v: boolean) => { if (!v) resetState(); onOpenChange(v); };
@@ -514,6 +370,10 @@ function ExportMnemonicDialog({ open, onOpenChange }: { open: boolean; onOpenCha
     } catch (e) {
       if (e instanceof Error && e.message === 'MNEMONIC_NOT_STORED') {
         setNotStored(true);
+      } else if (e instanceof Error && e.message.startsWith('ACCOUNT_LOCKED:')) {
+        setError(t('accountLockedOut', { seconds: e.message.split(':')[1] }));
+      } else if (e instanceof Error && e.message.startsWith('TOO_MANY_ATTEMPTS:')) {
+        setError(t('tooManyAttempts', { seconds: e.message.split(':')[1] }));
       } else {
         setError(t('unlockFailed'));
       }
@@ -535,12 +395,7 @@ function ExportMnemonicDialog({ open, onOpenChange }: { open: boolean; onOpenCha
           <DialogDescription>{t('exportMnemonicDesc')}</DialogDescription>
         </DialogHeader>
 
-        {!isLocal ? (
-          <div className="py-6 text-center">
-            <ShieldAlert className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-            <p className="text-sm text-muted-foreground">{t('exportNotLocal')}</p>
-          </div>
-        ) : notStored ? (
+        {notStored ? (
           <div className="space-y-4">
             <div className="rounded-lg border border-warning/30 bg-warning/5 p-4">
               <div className="flex items-start gap-2">
@@ -599,9 +454,12 @@ function ExportMnemonicDialog({ open, onOpenChange }: { open: boolean; onOpenCha
 export default function WalletPage() {
   const t = useTranslations();
   const { toast } = useToast();
-  const isNative = Capacitor.isNativePlatform();
-  const { address, isConnected, source, name, isLocked, lockWallet, autoLockMinutes, setAutoLockMinutes } = useWalletStore();
-  const { getExtensionAccounts, connectExtension, connect, disconnect } = useWallet();
+  const { address, isConnected, name, isLocked, lockWallet, autoLockMinutes, setAutoLockMinutes } = useWalletStore();
+  const { connect, disconnect } = useWallet();
+  const localAccounts = useLocalAccountsStore((s) => s.accounts);
+  const removeAccount = useLocalAccountsStore((s) => s.removeAccount);
+  const currentAccount = localAccounts.find((acct) => acct.address === address) ?? null;
+  const canExportMnemonic = !!currentAccount;
   const currentEntityId = useEntityStore((s) => s.currentEntityId);
   const queryClient = useQueryClient();
 
@@ -613,6 +471,8 @@ export default function WalletPage() {
   const { toUsdt } = useNexPrice();
   const totalUsdt = totalBalance > BigInt(0) ? toUsdt(totalBalance) : null;
 
+  const { data: shoppingBalance } = useShoppingBalance(currentEntityId, address);
+
   // Entity token queries
   const { data: tokenConfig } = useTokenConfig(currentEntityId);
   const { data: tokenMeta } = useTokenMetadata(currentEntityId);
@@ -620,15 +480,15 @@ export default function WalletPage() {
   const hasToken = !!tokenConfig?.enabled && !!tokenMeta;
 
   const [copied, setCopied] = useState(false);
-  const [connecting, setConnecting] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [showImport, setShowImport] = useState(false);
-  const [showSwitch, setShowSwitch] = useState(false);
   const [showTransfer, setShowTransfer] = useState(false);
   const [showReceive, setShowReceive] = useState(false);
   const [showExport, setShowExport] = useState(false);
 
-  const isLocal = source === 'local';
+  const handleScanQr = useCallback(() => {
+    toast({ title: t('wallet.scanNotSupported'), variant: 'destructive' });
+  }, [toast, t]);
 
   const handleRefreshBalance = useCallback(async () => {
     await Promise.all([
@@ -641,16 +501,6 @@ export default function WalletPage() {
     onRefresh: handleRefreshBalance,
     disabled: !isConnected,
   });
-
-  const handleConnectExtension = async () => {
-    setConnecting(true);
-    try {
-      const accounts = await getExtensionAccounts();
-      if (accounts.length > 0) { await connectExtension(accounts[0]); }
-      else { toast({ title: t('wallet.noExtension'), variant: 'destructive' }); }
-    } catch (e) { console.error('Wallet connection failed:', e); }
-    finally { setConnecting(false); }
-  };
 
   const handleCreated = async (createdAddress: string) => {
     const accounts = useLocalAccountsStore.getState().accounts;
@@ -703,26 +553,27 @@ export default function WalletPage() {
                 {/* Wallet name + source badge */}
                 <div className="relative flex items-center gap-2 mb-1">
                   <span className="text-sm font-medium opacity-90">{name || shortAddress(address!)}</span>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${isLocal ? 'bg-white/20' : 'bg-white/10 border border-white/20'}`}>
-                    {isLocal ? t('wallet.local') : source}
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/20">
+                    {t('wallet.local')}
                   </span>
                 </div>
 
                 {/* Balance */}
                 <div className="relative mt-2 mb-4 space-y-1">
-                  <p className="text-2xl font-bold tracking-tight">{formatBalance(totalBalance.toString())} <span className="text-base font-normal opacity-80">NEX</span></p>
-                  {totalUsdt && (
-                    <p className="text-sm opacity-70">≈ ${formatUsdt(totalUsdt)} USDT</p>
-                  )}
+                  <p className="text-2xl font-bold tracking-tight">
+                    {formatBalance(totalBalance.toString())} <span className="text-base font-normal opacity-80">NEX</span>
+                    {totalUsdt && <span className="text-sm font-normal opacity-70 ml-2">≈ ${formatUsdt(totalUsdt)} USDT</span>}
+                  </p>
                   <div className="flex items-center gap-4 text-xs opacity-80">
                     <span>{t('wallet.freeBalance')}: {formatBalance(freeBalance.toString())}</span>
                     <span>{t('wallet.reservedBalance')}: {formatBalance(reservedBalance.toString())}</span>
+                    <span>{t('wallet.shoppingBalance')}: {formatBalance(shoppingBalance ?? '0')}</span>
                   </div>
                 </div>
 
                 {/* Address row */}
                 <div className="relative flex items-center gap-2">
-                  <span className="font-mono text-xs opacity-70">{shortAddress(address!, 8)}</span>
+                  <span className="font-mono text-xs opacity-70 break-all">{address}</span>
                   <button className="opacity-70 hover:opacity-100 transition-opacity" onClick={handleCopy}>
                     {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                   </button>
@@ -730,7 +581,7 @@ export default function WalletPage() {
               </div>
 
               {/* Quick action buttons */}
-              <div className={`grid gap-2 ${isLocal ? 'grid-cols-5' : 'grid-cols-4'}`}>
+              <div className="grid gap-2 grid-cols-5">
                 <Button variant="outline" className="h-auto py-3 flex-col gap-1.5" onClick={() => setShowTransfer(true)}>
                   <Send className="h-5 w-5 text-primary" />
                   <span className="text-[11px]">{t('wallet.transfer')}</span>
@@ -739,47 +590,99 @@ export default function WalletPage() {
                   <QrCode className="h-5 w-5 text-green-600" />
                   <span className="text-[11px]">{t('wallet.receive')}</span>
                 </Button>
-                <Button variant="outline" className="h-auto py-3 flex-col gap-1.5" onClick={() => setShowSwitch(true)}>
-                  <ArrowRightLeft className="h-5 w-5 text-blue-600" />
-                  <span className="text-[11px]">{t('wallet.switchAccount')}</span>
+                <Button variant="outline" className="h-auto py-3 flex-col gap-1.5" onClick={handleScanQr}>
+                  <ScanLine className="h-5 w-5 text-purple-600" />
+                  <span className="text-[11px]">{t('wallet.scanQr')}</span>
                 </Button>
-                {isLocal && (
+                {canExportMnemonic && (
                   <Button variant="outline" className="h-auto py-3 flex-col gap-1.5" onClick={() => setShowExport(true)}>
                     <Key className="h-5 w-5 text-amber-600" />
                     <span className="text-[11px]">{t('wallet.exportMnemonic')}</span>
                   </Button>
                 )}
-                {isLocal && (
-                  <Button variant="outline" className="h-auto py-3 flex-col gap-1.5" onClick={lockWallet}>
-                    <Lock className="h-5 w-5 text-red-600" />
-                    <span className="text-[11px]">{t('wallet.lockWallet')}</span>
-                  </Button>
-                )}
-                {!isLocal && (
-                  <Button variant="outline" className="h-auto py-3 flex-col gap-1.5" disabled>
-                    <Key className="h-5 w-5 text-muted-foreground" />
-                    <span className="text-[11px] text-muted-foreground">{t('wallet.exportMnemonic')}</span>
-                  </Button>
-                )}
+                <Button variant="outline" className="h-auto py-3 flex-col gap-1.5" onClick={lockWallet}>
+                  <Lock className="h-5 w-5 text-red-600" />
+                  <span className="text-[11px]">{t('wallet.lockWallet')}</span>
+                </Button>
               </div>
 
               {/* Add wallet */}
               <Card>
                 <CardContent className="p-4 space-y-3">
                   <p className="text-sm font-medium">{t('wallet.addWallet')}</p>
-                  <div className={`grid gap-2 ${isNative ? 'grid-cols-2' : 'grid-cols-3'}`}>
+                  <div className="grid gap-2 grid-cols-2">
                     <Button variant="default" size="sm" className="w-full" onClick={() => setShowCreate(true)}>
                       <Plus className="h-3.5 w-3.5 mr-1" />{t('wallet.create')}
                     </Button>
                     <Button variant="outline" size="sm" className="w-full" onClick={() => setShowImport(true)}>
                       <Download className="h-3.5 w-3.5 mr-1" />{t('wallet.import')}
                     </Button>
-                    {!isNative && (
-                    <Button variant="outline" size="sm" className="w-full" onClick={handleConnectExtension} disabled={connecting}>
-                      <Wallet className="h-3.5 w-3.5 mr-1" />{connecting ? t('wallet.connecting') : t('wallet.extension')}
-                    </Button>
-                    )}
                   </div>
+                </CardContent>
+              </Card>
+
+              {/* Wallet management */}
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Wallet className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">{t('wallet.cachedWallets')}</span>
+                  </div>
+                  {localAccounts.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-3">{t('wallet.noCachedWallets')}</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {localAccounts.map((acct) => {
+                        const isCurrent = acct.address === address;
+                        return (
+                          <div
+                            key={acct.address}
+                            className={`flex items-center gap-3 rounded-lg p-3 transition-colors ${isCurrent ? 'bg-primary/10 border border-primary/30' : 'bg-secondary'}`}
+                          >
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary">
+                              {acct.name.charAt(0).toUpperCase()}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium truncate">{acct.name}</span>
+                                {isCurrent && (
+                                  <Badge variant="default" className="text-[10px] px-1.5 py-0">{t('wallet.currentlyConnected')}</Badge>
+                                )}
+                              </div>
+                              <p className="font-mono text-xs text-muted-foreground">{shortAddress(acct.address)}</p>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              {!isCurrent && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="shrink-0 text-xs"
+                                  onClick={() => connect({ address: acct.address, name: acct.name, source: 'local' })}
+                                >
+                                  <ArrowRightLeft className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
+                              {!isCurrent && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-destructive hover:text-destructive"
+                                  onClick={() => {
+                                    if (confirm(t('wallet.deleteConfirm'))) {
+                                      removeAccount(acct.address);
+                                    }
+                                  }}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
+                              {isCurrent && <Check className="h-4 w-4 text-primary" />}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -809,30 +712,28 @@ export default function WalletPage() {
                 </Card>
               )}
 
-              {/* Auto-lock setting (local wallet only) */}
-              {isLocal && (
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Lock className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm font-medium">{t('wallet.autoLock')}</span>
-                      </div>
-                      <select
-                        className="rounded-md border border-input bg-background px-2 py-1 text-sm"
-                        value={autoLockMinutes}
-                        onChange={(e) => setAutoLockMinutes(Number(e.target.value))}
-                      >
-                        <option value={1}>{t('wallet.autoLock1Min')}</option>
-                        <option value={5}>{t('wallet.autoLock5Min')}</option>
-                        <option value={15}>{t('wallet.autoLock15Min')}</option>
-                        <option value={30}>{t('wallet.autoLock30Min')}</option>
-                        <option value={0}>{t('wallet.autoLockNever')}</option>
-                      </select>
+              {/* Auto-lock setting */}
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Lock className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm font-medium">{t('wallet.autoLock')}</span>
                     </div>
-                  </CardContent>
-                </Card>
-              )}
+                    <select
+                      className="rounded-md border border-input bg-background px-2 py-1 text-sm"
+                      value={autoLockMinutes}
+                      onChange={(e) => setAutoLockMinutes(Number(e.target.value))}
+                    >
+                      <option value={1}>{t('wallet.autoLock1Min')}</option>
+                      <option value={5}>{t('wallet.autoLock5Min')}</option>
+                      <option value={15}>{t('wallet.autoLock15Min')}</option>
+                      <option value={30}>{t('wallet.autoLock30Min')}</option>
+                      <option value={0}>{t('wallet.autoLockNever')}</option>
+                    </select>
+                  </div>
+                </CardContent>
+              </Card>
 
               {/* Disconnect */}
               <Button variant="outline" className="w-full text-destructive hover:text-destructive" onClick={disconnect}>
@@ -849,18 +750,13 @@ export default function WalletPage() {
                   <p className="text-sm font-medium">{t('profile.notConnected')}</p>
                   <p className="text-xs text-muted-foreground text-center">{t('profile.notConnectedDesc')}</p>
                 </div>
-                <div className={`grid gap-2 ${isNative ? 'grid-cols-2' : 'grid-cols-3'}`}>
+                <div className="grid gap-2 grid-cols-2">
                   <Button variant="default" size="sm" className="w-full" onClick={() => setShowCreate(true)}>
                     <Plus className="h-3.5 w-3.5 mr-1" />{t('wallet.create')}
                   </Button>
                   <Button variant="outline" size="sm" className="w-full" onClick={() => setShowImport(true)}>
                     <Download className="h-3.5 w-3.5 mr-1" />{t('wallet.import')}
                   </Button>
-                  {!isNative && (
-                  <Button variant="outline" size="sm" className="w-full" onClick={handleConnectExtension} disabled={connecting}>
-                    <Wallet className="h-3.5 w-3.5 mr-1" />{connecting ? t('wallet.connecting') : t('wallet.extension')}
-                  </Button>
-                  )}
                 </div>
               </CardContent>
             </Card>
@@ -870,7 +766,6 @@ export default function WalletPage() {
 
       <CreateWalletDialog open={showCreate} onOpenChange={setShowCreate} onCreated={handleCreated} />
       <ImportWalletDialog open={showImport} onOpenChange={setShowImport} onImported={handleImported} />
-      <SwitchAccountDialog open={showSwitch} onOpenChange={setShowSwitch} />
       <TransferDialog open={showTransfer} onOpenChange={setShowTransfer} />
       <ReceiveDialog open={showReceive} onOpenChange={setShowReceive} />
       <ExportMnemonicDialog open={showExport} onOpenChange={setShowExport} />

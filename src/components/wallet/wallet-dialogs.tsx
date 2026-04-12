@@ -43,7 +43,7 @@ export function QRCodeDisplay({ value }: { value: string }) {
 // ─────────────────────────────────────────────
 // Transfer Dialog
 // ─────────────────────────────────────────────
-export function TransferDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+export function TransferDialog({ open, onOpenChange, initialRecipient }: { open: boolean; onOpenChange: (open: boolean) => void; initialRecipient?: string }) {
   const t = useTranslations('wallet');
   const tTx = useTranslations('tx');
   const { address, source } = useWalletStore();
@@ -55,6 +55,11 @@ export function TransferDialog({ open, onOpenChange }: { open: boolean; onOpenCh
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const isLocal = source === 'local';
+
+  // Pre-fill recipient from QR scan
+  useEffect(() => {
+    if (initialRecipient && open) setRecipient(initialRecipient);
+  }, [initialRecipient, open]);
 
   const resetState = () => { setRecipient(''); setAmount(''); setPassword(''); setError(''); reset(); };
   const handleOpenChange = (v: boolean) => { if (!v) resetState(); onOpenChange(v); };

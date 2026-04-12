@@ -1,4 +1,4 @@
-export const locales = ['zh', 'en', 'ja', 'ko', 'es'] as const;
+export const locales = ['en', 'ja', 'ko', 'es', 'zh', 'fr', 'de', 'pt', 'ru', 'ar'] as const;
 export type Locale = (typeof locales)[number];
 
 export const defaultLocale: Locale = 'en';
@@ -8,7 +8,28 @@ export const defaultLocale: Locale = 'en';
 import defaultMessages from '../../messages/en.json';
 export { defaultMessages };
 
-export async function getMessages(locale: Locale = defaultLocale) {
-  if (locale === defaultLocale) return defaultMessages;
-  return (await import(`../../messages/${locale}.json`)).default;
+const messageLoaders: Record<Locale, () => Promise<Record<string, any>>> = {
+  ar: () => import('../../messages/ar.json').then((mod) => mod.default),
+  de: () => import('../../messages/de.json').then((mod) => mod.default),
+  en: () => Promise.resolve(defaultMessages),
+  es: () => import('../../messages/es.json').then((mod) => mod.default),
+  fr: () => import('../../messages/fr.json').then((mod) => mod.default),
+  ja: () => import('../../messages/ja.json').then((mod) => mod.default),
+  ko: () => import('../../messages/ko.json').then((mod) => mod.default),
+  pt: () => import('../../messages/pt.json').then((mod) => mod.default),
+  ru: () => import('../../messages/ru.json').then((mod) => mod.default),
+  zh: () => import('../../messages/zh.json').then((mod) => mod.default),
+};
+
+export function isLocale(value: string): value is Locale {
+  return locales.includes(value as Locale);
+}
+
+export async function getMessages(locale: string = defaultLocale) {
+  if (!isLocale(locale)) return defaultMessages;
+  try {
+    return await messageLoaders[locale]();
+  } catch {
+    return defaultMessages;
+  }
 }

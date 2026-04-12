@@ -227,6 +227,20 @@ export function nexToUsdtDynamic(nexRaw: string | bigint, nexUsdtRate: number | 
   return usdtRaw.toString();
 }
 
+/** Build an upward-rounded max spend amount by applying a slippage buffer in bps. */
+export function applySlippageBps(rawAmount: string | bigint, bps: number): string {
+  const amount = typeof rawAmount === 'bigint' ? rawAmount : BigInt(rawAmount || '0');
+  if (amount <= BigInt(0) || bps <= 0) return amount.toString();
+  const buffered = (amount * BigInt(10_000 + bps) + BigInt(9_999)) / BigInt(10_000);
+  return buffered.toString();
+}
+
+/** Lightweight TRON address format validation (base58-style mainnet address). */
+export function isValidTronAddress(address: string): boolean {
+  const trimmed = address.trim();
+  return /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(trimmed);
+}
+
 /** Get pallet storage entries as array */
 export async function queryStorageMap<T>(
   api: ApiPromise,

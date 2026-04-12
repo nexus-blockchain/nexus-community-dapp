@@ -1,9 +1,36 @@
 /** Default seed nodes.
  * Production deployments can override via NEXT_PUBLIC_WS_ENDPOINTS env var. */
 export const SEED_NODES: string[] = [
-  'ws://149.88.70.10:9944',
-  'ws://127.0.0.1:9944',
+  'wss://80.96.113.85:9948',
 ];
+
+function isAllowedRemoteEndpoint(endpoint: string): boolean {
+  return endpoint.startsWith('wss://') || endpoint.startsWith('ws://');
+}
+
+function isAllowedLocalEndpoint(endpoint: string): boolean {
+  return endpoint.startsWith('ws://127.0.0.1') || endpoint.startsWith('ws://localhost');
+}
+
+export function isAllowedEndpoint(endpoint: string): boolean {
+  return isAllowedLocalEndpoint(endpoint) || isAllowedRemoteEndpoint(endpoint);
+}
+
+export function filterAllowedEndpoints(endpoints: string[]): string[] {
+  const filtered: string[] = [];
+  for (const endpoint of endpoints) {
+    if (!isAllowedEndpoint(endpoint)) {
+      if (typeof window !== 'undefined') {
+        console.warn(`[nexus] Ignoring insecure or unsupported endpoint: ${endpoint}`);
+      }
+      continue;
+    }
+    if (!filtered.includes(endpoint)) {
+      filtered.push(endpoint);
+    }
+  }
+  return filtered;
+}
 
 /** Node health probe configuration */
 export const NODE_HEALTH_CONFIG = {
@@ -24,7 +51,7 @@ export const NODE_HEALTH_CONFIG = {
   /** Timeout per endpoint probe during discovery (ms) */
   discoveryProbeTimeout: 3_000,
   /** RPC ports to try when constructing ws:// URLs from discovered IPs */
-  discoveryRpcPorts: [9944, 9945] as readonly number[],
+  discoveryRpcPorts: [9948, 9944, 9945] as readonly number[],
   /** localStorage key for discovered node cache */
   discoveredNodesCacheKey: 'nexus_discovered_nodes',
   /** Max number of discovered nodes to keep in cache */
@@ -41,41 +68,20 @@ export const NODE_HEALTH_CONFIG = {
 
 /** Return only the seed endpoints (for UI labelling) */
 export function getSeedEndpoints(): string[] {
-  return [...SEED_NODES];
+  return filterAllowedEndpoints(SEED_NODES);
 }
 
 /**
- * Get all known endpoints: env var > seeds, merged with localStorage-cached discovered nodes (deduped).
- * The discovery cache is managed by peer-discovery.ts.
+ * Get trusted auto-connect endpoints only: env var > seeds.
+ * Discovered node cache is intentionally excluded from automatic connection.
  */
 export function getConfiguredEndpoints(): string[] {
-  // 1. env var takes priority
   const multi = process.env.NEXT_PUBLIC_WS_ENDPOINTS;
   const base: string[] = multi
     ? multi.split(',').map((s) => s.trim()).filter(Boolean)
     : [...SEED_NODES];
 
-  // Warn if using unencrypted ws:// in production
-  if (typeof window !== 'undefined' && base.some((e) => e.startsWith('ws://') && !e.includes('127.0.0.1') && !e.includes('localhost'))) {
-    console.warn('[nexus] Using unencrypted ws:// for remote node. Consider wss:// for production.');
-  }
-
-  // 2. merge cached discovered nodes
-  if (typeof window !== 'undefined') {
-    try {
-      const raw = localStorage.getItem(NODE_HEALTH_CONFIG.discoveredNodesCacheKey);
-      if (raw) {
-        const cached: { endpoint: string }[] = JSON.parse(raw);
-        for (const entry of cached) {
-          if (entry.endpoint && !base.includes(entry.endpoint)) {
-            base.push(entry.endpoint);
-          }
-        }
-      }
-    } catch { /* ignore corrupt cache */ }
-  }
-
-  return base;
+  return filterAllowedEndpoints(base);
 }
 
 /** React Query staleTime configuration per module (in ms) */

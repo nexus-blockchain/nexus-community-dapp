@@ -9,6 +9,7 @@ import { useLocalWallet } from './use-local-wallet';
 import { useWalletStore } from '@/stores/wallet-store';
 import { useTransferHistoryStore } from '@/stores/transfer-history-store';
 import {
+  checkAttemptAllowed,
   recordFailure,
   recordSuccess,
 } from '@/lib/utils/brute-force-protection';
@@ -61,6 +62,11 @@ export function useTransfer() {
         const tx = api.tx.balances.transferKeepAlive(to, amount);
 
         if (source === 'local' && password) {
+          const bfCheck = checkAttemptAllowed(address);
+          if (!bfCheck.allowed) {
+            throw new Error(`Account locked. Try again in ${bfCheck.waitSeconds}s`);
+          }
+
           // Local wallet: unlock keypair via shared utility
           let pair;
           try {

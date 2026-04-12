@@ -11,6 +11,7 @@
 
 interface AttemptState {
   failures: number;
+  nextAllowedAt: number | null;
   lockedUntil: number | null; // timestamp ms
 }
 
@@ -39,9 +40,13 @@ const MAX_DELAY_MS = 60_000; // 60s cap
 
 function getState(address: string): AttemptState {
   if (!attempts.has(address)) {
-    attempts.set(address, { failures: 0, lockedUntil: null });
+    attempts.set(address, { failures: 0, nextAllowedAt: null, lockedUntil: null });
   }
-  return attempts.get(address)!;
+  const state = attempts.get(address)!;
+  if (state.nextAllowedAt === undefined) {
+    state.nextAllowedAt = null;
+  }
+  return state;
 }
 
 export interface BruteForceCheck {
@@ -66,20 +71,20 @@ export function checkAttemptAllowed(address: string): BruteForceCheck {
   // If lockout expired, reset
   if (state.lockedUntil && now >= state.lockedUntil) {
     state.failures = 0;
+    state.nextAllowedAt = null;
     state.lockedUntil = null;
     saveAttempts();
   }
 
-  // Check exponential delay (after DELAY_THRESHOLD failures)
-  if (state.failures >= DELAY_THRESHOLD) {
-    const delayMs = Math.min(
-      Math.pow(2, state.failures - DELAY_THRESHOLD) * 1000,
-      MAX_DELAY_MS,
-    );
-    // We don't track "last attempt time" — the delay is enforced via
-    // a UI countdown instead. The check always allows but returns waitSeconds
-    // so the UI can display a countdown before enabling the button.
-    return { allowed: true, waitSeconds: Math.ceil(delayMs / 1000), errorKey: 'tooManyAttempts' };
+  // Enforce cooldown between attempts after DELAY_THRESHOLD failures
+  if (state.nextAllowedAt && now < state.nextAllowedAt) {
+    const waitSeconds = Math.ceil((state.nextAllowedAt - now) / 1000);
+    return { allowed: false, waitSeconds, errorKey: 'tooManyAttempts' };
+  }
+
+  if (state.nextAllowedAt && now >= state.nextAllowedAt) {
+    state.nextAllowedAt = null;
+    saveAttempts();
   }
 
   return { allowed: true, waitSeconds: 0, errorKey: null };
@@ -91,8 +96,18 @@ export function recordFailure(address: string): void {
   state.failures++;
 
   if (state.failures >= LOCKOUT_THRESHOLD) {
+    state.nextAllowedAt = null;
     state.lockedUntil = Date.now() + LOCKOUT_DURATION_MS;
+  } else if (state.failures >= DELAY_THRESHOLD) {
+    const delayMs = Math.min(
+      Math.pow(2, state.failures - DELAY_THRESHOLD) * 1000,
+      MAX_DELAY_MS,
+    );
+    state.nextAllowedAt = Date.now() + delayMs;
+  } else {
+    state.nextAllowedAt = null;
   }
+
   saveAttempts();
 }
 

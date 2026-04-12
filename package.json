@@ -14,6 +14,7 @@
     "open:android": "npx cap open android"
   },
   "dependencies": {
+    "@capacitor/barcode-scanner": "^3.0.2",
     "@capacitor/clipboard": "^8.0.1",
     "@capacitor/core": "^8.2.0",
     "@polkadot/api": "^16.5.4",

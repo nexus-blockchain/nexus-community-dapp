@@ -16,6 +16,8 @@ export {
   usdtToRaw,
   usdtToNexDynamic,
   nexToUsdtDynamic,
+  applySlippageBps,
+  isValidTronAddress,
   queryStorageMap,
   isTxBusy,
   parseChainEnum,

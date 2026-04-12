@@ -7,7 +7,7 @@ import { PageContainer } from '@/components/layout/page-container';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ArrowUpDown, ChevronUp, ChevronDown, Copy, Check, History, FileText, Filter } from 'lucide-react';
+import { ArrowUpDown, ChevronUp, ChevronDown, Copy, Check, History, FileText, Filter, Users, Info } from 'lucide-react';
 import { HelpTip } from '@/components/ui/help-tip';
 import { useEntityStore, useWalletStore } from '@/stores';
 import {
@@ -20,6 +20,7 @@ import {
   useSingleLinePosition,
   useSingleLineMemberView,
 } from '@/hooks/use-single-line-commission';
+import { useMember } from '@/hooks/use-member';
 import { formatBalance, bpsToPercent, shortAddress } from '@/lib/utils/chain-helpers';
 import { useMemo, useState, useCallback } from 'react';
 import { usePagination } from '@/hooks/use-pagination';
@@ -86,6 +87,7 @@ export default function SingleLineEarningsPage() {
   const { data: queue, isLoading: queueLoading } = useSingleLineQueue(currentEntityId);
   const { data: memberView, isLoading: memberViewLoading } = useSingleLineMemberView(currentEntityId, address);
   const { data: coreRecords, isLoading: coreLoading } = useSingleLineCommissionRecords(currentEntityId, address);
+  const { data: member } = useMember(currentEntityId, address);
 
   const [dirFilter, setDirFilter] = useState<DirectionFilter>('all');
 
@@ -147,28 +149,26 @@ export default function SingleLineEarningsPage() {
   // User perspective: SingleLineDownline = I earned as downline = buyer is my upline → show "upline" label
   const isFromUpline = (r: CommissionRecord) => r.commissionType === 'SingleLineDownline';
 
+  // Level difference stats: aggregate earnings by level distance and direction
+  const levelDiffStats = useMemo(() => {
+    if (!coreRecords || !coreRecords.length) return [];
+    const map = new Map<string, { direction: string; level: number; amount: bigint; count: number }>();
+    for (const r of coreRecords) {
+      if (r.status === 'Cancelled') continue;
+      const dir = isFromUpline(r) ? 'upline' : 'downline';
+      const key = `${dir}-${r.level}`;
+      const prev = map.get(key) ?? { direction: dir, level: r.level, amount: BigInt(0), count: 0 };
+      map.set(key, { ...prev, amount: prev.amount + BigInt(r.amount), count: prev.count + 1 });
+    }
+    return Array.from(map.values())
+      .sort((a, b) => a.direction.localeCompare(b.direction) || a.level - b.level);
+  }, [coreRecords]);
+
   return (
     <>
       <MobileHeader title={t('title')} showBack />
       <PageContainer>
         <div className="space-y-4">
-          {/* Status */}
-          <div className="flex items-center gap-2">
-            <Badge variant={overview?.isEnabled ? 'success' : 'warning'}>
-              {overview?.isEnabled ? t('running') : t('paused')}
-            </Badge>
-            {queue && (
-              <Badge variant="secondary">
-                {t('queueLength', { count: queue.length })}
-              </Badge>
-            )}
-            {myPos != null && (
-              <Badge variant="outline">
-                {t('myPosition')}: #{myPos + 1}
-              </Badge>
-            )}
-          </div>
-
           {/* My single-line earnings */}
           {address && (
             <Card className="border-primary/30">
@@ -298,219 +298,18 @@ export default function SingleLineEarningsPage() {
             </Card>
           )}
 
-          {/* Plugin payout history (FIFO buffer) */}
-          {address && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <History className="h-4 w-4" />
-                  {t('pluginPayouts')}
-                  {sortedPayouts.length > 0 && (
-                    <Badge variant="secondary" className="ml-auto text-xs">
-                      {sortedPayouts.length}
-                    </Badge>
-                  )}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {memberViewLoading ? (
-                  <div className="space-y-2">
-                    <Skeleton className="h-16 w-full" />
-                    <Skeleton className="h-16 w-full" />
-                    <Skeleton className="h-16 w-full" />
-                  </div>
-                ) : sortedPayouts.length === 0 ? (
-                  <p className="py-4 text-center text-sm text-muted-foreground">{t('noPayouts')}</p>
-                ) : (
-                  <div className="space-y-2">
-                    {payoutsPagination.pageItems.map((p, i) => {
-                      // User perspective: direction 0 = chain Upline = I am buyer's upline = buyer is my downline → show "downline"
-                      //                  direction 1 = chain Downline = I am buyer's downline = buyer is my upline → show "upline"
-                      const isUpline = p.direction === 1;
-                      return (
-                        <div key={i} className="flex items-start gap-3 rounded-lg border border-border p-3">
-                          <div className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-                            isUpline ? 'bg-green-500/15 text-green-500' : 'bg-blue-500/15 text-blue-500'
-                          }`}>
-                            {isUpline ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center justify-between">
-                              <p className={`text-sm font-semibold ${isUpline ? 'text-green-500' : 'text-blue-500'}`}>
-                                +{formatBalance(p.amount)} NEX
-                              </p>
-                              <Badge variant="outline" className="text-xs">
-                                {t('levelDistanceLabel', {
-                                  dir: isUpline ? t('directionUpline') : t('directionDownline'),
-                                  n: p.levelDistance,
-                                })}
-                              </Badge>
-                            </div>
-                            <p className="mt-0.5 text-xs text-muted-foreground">
-                              {t('orderLabel', { id: p.orderId })} · {shortAddress(p.buyer, 6)}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {t('blockLabel', { block: p.blockNumber })}
-                            </p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                    <PaginationBar pagination={payoutsPagination} />
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Upline addresses */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <ChevronUp className="h-4 w-4 text-green-500" />
-                {myPos != null ? t('uplineAddresses') : t('allMembers')}
-                <Badge variant="secondary" className="ml-auto text-xs">
-                  {uplines.length}
-                </Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {queueLoading ? (
-                <div className="space-y-2">
-                  <Skeleton className="h-14 w-full" />
-                  <Skeleton className="h-14 w-full" />
-                  <Skeleton className="h-14 w-full" />
+          {/* Hint / Explanation */}
+          <Card className="border-amber-500/30 bg-amber-500/5">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-2">
+                <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+                <div>
+                  <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">{t('hintTitle')}</p>
+                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{t('hintContent')}</p>
                 </div>
-              ) : uplines.length === 0 ? (
-                <p className="py-4 text-center text-sm text-muted-foreground">{t('noUplines')}</p>
-              ) : (
-                <div className="space-y-2">
-                  {uplines.map((item) => (
-                    <AddressCard
-                      key={item.globalIndex}
-                      address={item.address}
-                      index={item.globalIndex}
-                      isSelf={false}
-                    />
-                  ))}
-                </div>
-              )}
+              </div>
             </CardContent>
           </Card>
-
-          {/* Downline addresses */}
-          {myPos != null && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <ChevronDown className="h-4 w-4 text-blue-500" />
-                  {t('downlineAddresses')}
-                  <Badge variant="secondary" className="ml-auto text-xs">
-                    {downlines.length}
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {queueLoading ? (
-                  <div className="space-y-2">
-                    <Skeleton className="h-14 w-full" />
-                    <Skeleton className="h-14 w-full" />
-                    <Skeleton className="h-14 w-full" />
-                  </div>
-                ) : downlines.length === 0 ? (
-                  <p className="py-4 text-center text-sm text-muted-foreground">{t('noDownlines')}</p>
-                ) : (
-                  <div className="space-y-2">
-                    {downlines.map((item) => (
-                      <AddressCard
-                        key={item.globalIndex}
-                        address={item.address}
-                        index={item.globalIndex}
-                        isSelf={false}
-                      />
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Config */}
-          {isLoading ? (
-            <Skeleton className="h-40 w-full" />
-          ) : !config ? (
-            <Card>
-              <CardContent className="py-8 text-center">
-                <p className="text-muted-foreground">{t('noConfig')}</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <ArrowUpDown className="h-4 w-4" />
-                  {t('config')}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <p className="text-muted-foreground flex items-center gap-1">{t('uplineRate')} <HelpTip helpKey="singleLine.uplineRate" iconSize={12} /></p>
-                    <p className="font-semibold text-primary">{bpsToPercent(config.uplineRate)}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground flex items-center gap-1">{t('downlineRate')} <HelpTip helpKey="singleLine.downlineRate" iconSize={12} /></p>
-                    <p className="font-semibold text-primary">{bpsToPercent(config.downlineRate)}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground flex items-center gap-1">{t('baseUplineLevels')} <HelpTip helpKey="singleLine.baseUplineLevels" iconSize={12} /></p>
-                    <p className="font-semibold">{config.baseUplineLevels}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground flex items-center gap-1">{t('baseDownlineLevels')} <HelpTip helpKey="singleLine.baseDownlineLevels" iconSize={12} /></p>
-                    <p className="font-semibold">{config.baseDownlineLevels}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground flex items-center gap-1">{t('maxUplineLevels')} <HelpTip helpKey="singleLine.maxUplineLevels" iconSize={12} /></p>
-                    <p className="font-semibold">{config.maxUplineLevels}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground flex items-center gap-1">{t('maxDownlineLevels')} <HelpTip helpKey="singleLine.maxDownlineLevels" iconSize={12} /></p>
-                    <p className="font-semibold">{config.maxDownlineLevels}</p>
-                  </div>
-                  <div className="col-span-2">
-                    <p className="text-muted-foreground flex items-center gap-1">{t('levelThreshold')} <HelpTip helpKey="singleLine.levelThreshold" iconSize={12} /></p>
-                    <p className="font-semibold">{formatBalance(config.levelIncrementThreshold)} NEX</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Entity stats */}
-          {overview && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">{t('stats')}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-3 gap-3 text-center text-sm">
-                  <div>
-                    <p className="text-muted-foreground">{t('totalOrders')}</p>
-                    <p className="text-lg font-semibold">{overview.stats.totalOrders}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">{t('uplinePayouts')}</p>
-                    <p className="text-lg font-semibold">{overview.stats.totalUplinePayouts}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">{t('downlinePayouts')}</p>
-                    <p className="text-lg font-semibold">{overview.stats.totalDownlinePayouts}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
         </div>
       </PageContainer>
     </>

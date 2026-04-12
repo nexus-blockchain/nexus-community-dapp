@@ -23,14 +23,10 @@ import { useAllEntities } from '@/hooks/use-entity';
 import { useMember, useMyMemberships, useRegisterMember } from '@/hooks/use-member';
 import { useApi } from '@/lib/chain';
 import { useNodeHealthStore, type NodeStatus } from '@/stores/node-health-store';
-import { locales, type Locale } from '@/i18n/config';
+import { locales } from '@/i18n/config';
+import { LOCALE_LABELS } from '@/i18n/locale-labels';
 import { isTxBusy } from '@/lib/utils/chain-helpers';
 import { TxStatusIndicator } from '@/components/ui/tx-status-indicator';
-
-const LOCALE_LABELS: Record<Locale, string> = {
-  zh: '中文',
-  en: 'English',
-};
 
 const STATUS_VARIANT: Record<NodeStatus, 'success' | 'warning' | 'destructive' | 'secondary'> = {
   healthy: 'success',
@@ -183,15 +179,16 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent>
               <p className="mb-3 text-sm text-muted-foreground">{t('languageDesc')}</p>
-              <div className="flex gap-2">
+              <div className="grid grid-cols-5 gap-1">
                 {locales.map((loc) => (
                   <Button
                     key={loc}
                     variant={locale === loc ? 'default' : 'outline'}
                     size="sm"
+                    className="min-w-0 h-auto flex-col whitespace-normal px-1 py-2 text-[11px] leading-tight"
                     onClick={() => setLocale(loc)}
                   >
-                    {LOCALE_LABELS[loc]}
+                    <span className="block w-full break-words text-center">{LOCALE_LABELS[loc]}</span>
                   </Button>
                 ))}
               </div>

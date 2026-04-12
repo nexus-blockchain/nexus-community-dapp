@@ -67,8 +67,12 @@ export function UnlockDialog() {
       setCooldown(0);
     } catch {
       recordFailure(address);
-      refreshCooldown();
-      if (cooldown <= 0) {
+      const checkAfterFailure = checkAttemptAllowed(address);
+      if (!checkAfterFailure.allowed) {
+        setCooldown(checkAfterFailure.waitSeconds);
+        setError(t(checkAfterFailure.errorKey!, { seconds: checkAfterFailure.waitSeconds }));
+      } else {
+        setCooldown(0);
         setError(t('unlockFailed'));
       }
     } finally {

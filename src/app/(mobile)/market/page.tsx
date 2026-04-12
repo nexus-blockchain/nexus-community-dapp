@@ -1,15 +1,10 @@
 'use client';
 
-import { useState, useMemo, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { MobileHeader } from '@/components/layout/mobile-header';
 import { PageContainer } from '@/components/layout/page-container';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { useEntityStore, useWalletStore } from '@/stores';
-import {
-  useMarketStats, useLastTradePrice, useBestPrices,
-  useUserMarketOrders, useEntityTradeHistory, useOrderBookDepth,
-} from '@/hooks/use-market';
+import { useWalletStore } from '@/stores';
 import {
   useNexMarketStats, useNexPriceProtection, useNexMarketConstants,
   useNexOrderBookDepth, useNexOrderBook, useNexUserOrders, useNexCancelOrder,
@@ -17,8 +12,6 @@ import {
 } from '@/hooks/use-nex-global-market';
 import { formatBalance, isTxBusy } from '@/lib/utils/chain-helpers';
 import {
-  PricePanel, StatsBar, OrderBook, TradeForm,
-  PriceChart, MyOrders, TradeHistory,
   NexPricePanel, NexOrderBook, NexTradeForm, NexFirstOrderBanner,
   NexOrderList, NexActiveTrades, NexTradeHistory,
 } from '@/features/market';
@@ -27,35 +20,7 @@ import type { NexMarketOrder } from '@/lib/types';
 
 export default function MarketPage() {
   const t = useTranslations('market');
-  const { currentEntityId } = useEntityStore();
   const { address } = useWalletStore();
-
-  // -----------------------------------------------------------------------
-  // Entity Token Market data
-  // -----------------------------------------------------------------------
-  const { data: stats, isLoading: statsLoading } = useMarketStats(currentEntityId);
-  const { data: lastPrice } = useLastTradePrice(currentEntityId);
-  const { data: bestPrices } = useBestPrices(currentEntityId);
-  const { data: myOrders } = useUserMarketOrders(address);
-  const { data: trades } = useEntityTradeHistory(currentEntityId);
-  const { asks, bids, maxDepth, isLoading: bookLoading } = useOrderBookDepth(currentEntityId);
-
-  // Price change computed over full available trade history (not strictly 24h)
-  const changePercent = useMemo(() => {
-    if (!trades || trades.length < 2) return null;
-    const latest = Number(BigInt(trades[0].price));
-    const oldest = Number(BigInt(trades[trades.length - 1].price));
-    if (oldest === 0) return null;
-    return ((latest - oldest) / oldest) * 100;
-  }, [trades]);
-
-  const [prefilledPrice, setPrefilledPrice] = useState('');
-  const handlePriceClick = useCallback((rawPrice: string) => {
-    setPrefilledPrice(formatBalance(rawPrice, 12, 12).replace(/0+$/, '').replace(/\.$/, ''));
-  }, []);
-  const handlePrefilledUsed = useCallback(() => {
-    setPrefilledPrice('');
-  }, []);
 
   // -----------------------------------------------------------------------
   // NEX Global Market data
@@ -106,80 +71,41 @@ export default function MarketPage() {
     <>
       <MobileHeader title={t('title')} />
       <PageContainer>
-        <Tabs defaultValue="nex" className="pb-4">
-          <TabsList className="mb-3 w-full">
-            <TabsTrigger value="nex" className="flex-1">{t('nexTab')}</TabsTrigger>
-            <TabsTrigger value="entity" className="flex-1">{t('entityTab')}</TabsTrigger>
-          </TabsList>
-
-          {/* NEX / USDT Global Market tab */}
-          <TabsContent value="nex">
-            <div className="space-y-3">
-              <NexFirstOrderBanner
-                isEligible={firstOrderStatus.isEligible}
-                isActive={firstOrderStatus.isActive}
-                activeTradeId={firstOrderStatus.activeTradeId ?? null}
-              />
-              <NexActiveTrades
-                trades={nexUserTrades}
-                address={address}
-                orders={nexUserOrders}
-                onCancelOrder={handleNexCancelOrder}
-                cancelLoading={isTxBusy(nexCancelOrder.txState)}
-              />
-              <NexPricePanel
-                stats={nexStats}
-                protection={nexProtection}
-                seedPricePremiumBps={nexConstants?.seedPricePremiumBps}
-              />
-              <NexOrderBook
-                asks={nexAsks}
-                bids={nexBids}
-                maxDepth={nexMaxDepth}
-                lastPrice={nexStats?.lastPrice}
-                isLoading={nexBookLoading}
-              />
-              <NexOrderList
-                buyOrders={nexOrderBookData?.buyOrders ?? []}
-                sellOrders={nexOrderBookData?.sellOrders ?? []}
-                isLoading={nexBookLoading}
-                onBuyAction={handleAcceptBuyOrder}
-                onSellAction={handleReserveSellOrder}
-              />
-              <NexTradeForm prefill={orderPrefill} onPrefillUsed={handlePrefillUsed} />
-              <NexTradeHistory trades={nexUserTrades} address={address} />
-            </div>
-          </TabsContent>
-
-          {/* Entity Token Market tab */}
-          <TabsContent value="entity">
-            <div className="space-y-3">
-              <PricePanel
-                lastPrice={lastPrice}
-                bestAsk={bestPrices?.bestAsk}
-                bestBid={bestPrices?.bestBid}
-                change24h={changePercent}
-              />
-              <StatsBar stats={stats} isLoading={statsLoading} />
-              <PriceChart trades={trades} />
-              <OrderBook
-                asks={asks}
-                bids={bids}
-                maxDepth={maxDepth}
-                lastPrice={lastPrice}
-                isLoading={bookLoading}
-                onPriceClick={handlePriceClick}
-              />
-              <TradeForm
-                entityId={currentEntityId}
-                prefilledPrice={prefilledPrice}
-                onPrefilledPriceUsed={handlePrefilledUsed}
-              />
-              <MyOrders orders={myOrders} entityId={currentEntityId} />
-              <TradeHistory trades={trades} />
-            </div>
-          </TabsContent>
-        </Tabs>
+        <div className="space-y-3 pb-4">
+          <NexFirstOrderBanner
+            isEligible={firstOrderStatus.isEligible}
+            isActive={firstOrderStatus.isActive}
+            activeTradeId={firstOrderStatus.activeTradeId ?? null}
+          />
+          <NexActiveTrades
+            trades={nexUserTrades}
+            address={address}
+            orders={nexUserOrders}
+            onCancelOrder={handleNexCancelOrder}
+            cancelLoading={isTxBusy(nexCancelOrder.txState)}
+          />
+          <NexPricePanel
+            stats={nexStats}
+            protection={nexProtection}
+            seedPricePremiumBps={nexConstants?.seedPricePremiumBps}
+          />
+          <NexOrderBook
+            asks={nexAsks}
+            bids={nexBids}
+            maxDepth={nexMaxDepth}
+            lastPrice={nexStats?.lastPrice}
+            isLoading={nexBookLoading}
+          />
+          <NexOrderList
+            buyOrders={nexOrderBookData?.buyOrders ?? []}
+            sellOrders={nexOrderBookData?.sellOrders ?? []}
+            isLoading={nexBookLoading}
+            onBuyAction={handleAcceptBuyOrder}
+            onSellAction={handleReserveSellOrder}
+          />
+          <NexTradeForm prefill={orderPrefill} onPrefillUsed={handlePrefillUsed} />
+          <NexTradeHistory trades={nexUserTrades} address={address} />
+        </div>
       </PageContainer>
     </>
   );

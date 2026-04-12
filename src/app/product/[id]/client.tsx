@@ -6,10 +6,9 @@ import { useTranslations } from 'next-intl';
 import { MobileHeader } from '@/components/layout/mobile-header';
 import { PageContainer } from '@/components/layout/page-container';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Package, Minus, Plus, ShoppingCart, FileText, Loader2 } from 'lucide-react';
+import { Package, Minus, Plus, Loader2 } from 'lucide-react';
 import { ProductImage } from '@/components/ui/product-image';
 import { useProduct } from '@/hooks/use-product';
 import { useIpfsContent } from '@/hooks/use-ipfs-content';
@@ -25,23 +24,8 @@ export default function ProductDetailClient({ params }: { params: { id: string }
   const productId = Number(pathname.split('/').filter(Boolean)[1] ?? params.id);
   const { data: product, isLoading } = useProduct(productId);
   const { data: productName } = useIpfsContent(product?.nameCid);
-  const { data: productDetail, isLoading: isDetailLoading } = useIpfsContent(product?.detailCid);
   const { toNex } = useNexPrice();
   const [quantity, setQuantity] = useState(1);
-
-  const categoryLabels: Record<string, string> = {
-    Physical: t('categoryPhysical'),
-    Digital: t('categoryDigital'),
-    Service: t('categoryService'),
-    Subscription: t('categorySubscription'),
-    Bundle: t('categoryBundle'),
-  };
-
-  const visibilityLabels: Record<string, string> = {
-    Public: t('visibilityPublic'),
-    MembersOnly: t('visibilityMembers'),
-    LevelGated: t('visibilityLevel'),
-  };
 
   const minQty = product?.minOrderQuantity || 1;
   const maxQty = product?.maxOrderQuantity || 999;
@@ -78,19 +62,12 @@ export default function ProductDetailClient({ params }: { params: { id: string }
             {/* Info */}
             <Card>
               <CardContent className="p-4">
-                <div className="flex items-start justify-between">
+                <div>
                   <div>
                     <h2 className="text-lg font-semibold">
                       {productName || t('title', { id: product.id })}
                     </h2>
-                    <div className="mt-1 flex items-center gap-2">
-                      <Badge variant="outline">{categoryLabels[product.category] ?? product.category}</Badge>
-                      <Badge variant="secondary">{visibilityLabels[product.visibility] ?? product.visibility}</Badge>
-                    </div>
                   </div>
-                  <Badge variant={product.status === 'OnSale' ? 'success' : 'secondary'}>
-                    {product.status === 'OnSale' ? t('onSale') : product.status}
-                  </Badge>
                 </div>
 
                 {/* Price section — USDT primary, dynamic NEX secondary */}
@@ -115,16 +92,6 @@ export default function ProductDetailClient({ params }: { params: { id: string }
                   )}
                 </div>
 
-                <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <p className="text-muted-foreground">{t('stock')}</p>
-                    <p className="font-medium">{product.stock === 0 ? t('stockUnlimited') : product.stock - product.soldCount}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">{t('sold')}</p>
-                    <p className="font-medium">{product.soldCount}</p>
-                  </div>
-                </div>
               </CardContent>
             </Card>
 
@@ -161,36 +128,12 @@ export default function ProductDetailClient({ params }: { params: { id: string }
                   )}
 
                   <Button className="mt-4 w-full" size="lg" onClick={handleBuy}>
-                    <ShoppingCart className="mr-2 h-5 w-5" />
                     {t('buyNow')}
                   </Button>
                 </CardContent>
               </Card>
             )}
 
-            {/* Product detail (from IPFS) */}
-            {product.detailCid && (
-              <Card>
-                <CardContent className="p-4">
-                  <div className="mb-3 flex items-center gap-2">
-                    <FileText className="h-4 w-4 text-muted-foreground" />
-                    <p className="text-sm font-medium">{t('detail')}</p>
-                  </div>
-                  {isDetailLoading ? (
-                    <div className="flex items-center gap-2 py-4 text-muted-foreground">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span className="text-sm">{t('loadingDetail')}</span>
-                    </div>
-                  ) : productDetail ? (
-                    <div className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
-                      {productDetail}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">{t('detailLoadFailed')}</p>
-                  )}
-                </CardContent>
-              </Card>
-            )}
           </div>
         )}
       </PageContainer>
