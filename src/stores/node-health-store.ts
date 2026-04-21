@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { NODE_HEALTH_CONFIG } from '@/lib/chain/constants';
+import { NODE_HEALTH_CONFIG, isAllowedEndpoint } from '@/lib/chain/constants';
 
 export type NodeStatus = 'healthy' | 'slow' | 'unhealthy' | 'unknown';
 export type NodeSource = 'seed' | 'discovered' | 'manual';
@@ -33,7 +33,10 @@ interface NodeHealthStore {
 function loadPreferred(): string | null {
   if (typeof window === 'undefined') return null;
   try {
-    return localStorage.getItem(NODE_HEALTH_CONFIG.preferredNodeKey);
+    const endpoint = localStorage.getItem(NODE_HEALTH_CONFIG.preferredNodeKey);
+    if (!endpoint || isAllowedEndpoint(endpoint)) return endpoint;
+    localStorage.removeItem(NODE_HEALTH_CONFIG.preferredNodeKey);
+    return null;
   } catch {
     return null;
   }
@@ -124,7 +127,7 @@ export const useNodeHealthStore = create<NodeHealthStore>((set, get) => ({
   setPreferredEndpoint: (ep) => {
     if (typeof window !== 'undefined') {
       try {
-        if (ep) {
+        if (ep && isAllowedEndpoint(ep)) {
           localStorage.setItem(NODE_HEALTH_CONFIG.preferredNodeKey, ep);
         } else {
           localStorage.removeItem(NODE_HEALTH_CONFIG.preferredNodeKey);

@@ -100,7 +100,7 @@ function OrderCard({
     order.status === 'Cancelled' ? t('statusCancelled') : order.status;
   const displayAmount = getOrderDisplayAmount(order);
   const displayUnit = getOrderDisplayUnit(order);
-  const paymentLabel = getOrderPaymentLabel(order, t('paymentToken'));
+  const paymentLabel = getOrderPaymentLabel(order, t('paymentToken'), t('shoppingBalanceNex'));
 
   return (
     <Link href={`/order/${order.id}`}>

@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import { useEntityQuery } from './use-entity-query';
 import { useEntityMutation } from './use-entity-mutation';
-import { STALE_TIMES } from '@/lib/chain/constants';
+import { REFETCH_INTERVALS, STALE_TIMES } from '@/lib/chain/constants';
 import { bytesToString } from '@/lib/utils/chain-helpers';
 import type { NexMarketOrder, NexMarketTrade, NexMarketStats, NexPriceProtection } from '@/lib/types';
 
@@ -165,7 +165,7 @@ export function useNexMarketStats() {
         twapAccumulator,
       };
     },
-    { staleTime: STALE_TIMES.orderBook },
+    { staleTime: STALE_TIMES.orderBook, refetchInterval: REFETCH_INTERVALS.marketFast },
   );
 }
 

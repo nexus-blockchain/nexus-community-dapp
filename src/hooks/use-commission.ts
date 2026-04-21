@@ -2,7 +2,7 @@
 
 import { useEntityQuery, hasRuntimeApi } from './use-entity-query';
 import { useEntityMutation } from './use-entity-mutation';
-import { STALE_TIMES } from '@/lib/chain/constants';
+import { REFETCH_INTERVALS, STALE_TIMES } from '@/lib/chain/constants';
 import {
   parseSingleLineMemberView,
   parseSingleLinePayouts,
@@ -189,7 +189,7 @@ export function useSingleLineCommissionRecords(entityId: number | null, address:
       records.sort((a, b) => b.createdAt - a.createdAt);
       return records;
     },
-    { staleTime: STALE_TIMES.commission, enabled: entityId != null && !!address },
+    { staleTime: STALE_TIMES.commission, enabled: entityId != null && !!address, refetchInterval: REFETCH_INTERVALS.homepage },
   );
 }
 
@@ -300,7 +300,7 @@ export function useMultiLevelMemberStats(entityId: number | null, address: strin
         lastCommissionBlock: data?.lastCommissionBlock ?? data?.last_commission_block ?? 0,
       };
     },
-    { staleTime: STALE_TIMES.entity, enabled: entityId != null && !!address },
+    { staleTime: STALE_TIMES.entity, enabled: entityId != null && !!address, refetchInterval: REFETCH_INTERVALS.homepage },
   );
 }
 
@@ -337,7 +337,7 @@ export function useMultiLevelPayouts(entityId: number | null, address: string | 
         blockNumber: r.blockNumber ?? r.block_number ?? 0,
       }));
     },
-    { staleTime: STALE_TIMES.commission, enabled: entityId != null && !!address },
+    { staleTime: STALE_TIMES.commission, enabled: entityId != null && !!address, refetchInterval: REFETCH_INTERVALS.homepage },
   );
 }
 
@@ -472,7 +472,7 @@ export function useClaimRecords(entityId: number | null, address: string | null)
         tokenAmount: String(r.tokenAmount ?? r.token_amount ?? '0'),
       }));
     },
-    { staleTime: STALE_TIMES.entity, enabled: entityId != null && !!address },
+    { staleTime: STALE_TIMES.entity, enabled: entityId != null && !!address, refetchInterval: REFETCH_INTERVALS.homepage },
   );
 }
 
@@ -514,7 +514,7 @@ export function useUnallocatedPool(entityId: number | null) {
       const raw = await (api.query as any).commissionCore.unallocatedPool(entityId);
       return String(raw.toJSON() ?? '0');
     },
-    { staleTime: STALE_TIMES.entity, enabled: entityId != null },
+    { staleTime: STALE_TIMES.entity, enabled: entityId != null, refetchInterval: REFETCH_INTERVALS.homepage },
   );
 }
 
@@ -726,7 +726,7 @@ export function usePoolRewardMemberView(entityId: number | null, address: string
         hasPendingConfig: d.hasPendingConfig ?? d.has_pending_config ?? false,
       } as PoolRewardMemberView;
     },
-    { staleTime: STALE_TIMES.runtimeApi, enabled: entityId != null && !!address },
+    { staleTime: STALE_TIMES.runtimeApi, enabled: entityId != null && !!address, refetchInterval: REFETCH_INTERVALS.homepage },
   );
 }
 
@@ -760,13 +760,13 @@ export function useCurrentRoundFunding(entityId: number | null) {
         totalFundingCount: data.totalFundingCount ?? data.total_funding_count ?? 0,
       };
     },
-    { staleTime: STALE_TIMES.entity, enabled: entityId != null },
+    { staleTime: STALE_TIMES.entity, enabled: entityId != null, refetchInterval: REFETCH_INTERVALS.homepage },
   );
 }
 
 // Commission mutations
 export function useClaimPoolReward() {
   return useEntityMutation('commissionPoolReward', 'claimPoolReward', {
-    invalidateKeys: [['currentRound'], ['lastClaimedRound'], ['claimRecords'], ['distributionStats'], ['poolRewardMemberView']],
+    invalidateKeys: [['currentRound'], ['lastClaimedRound'], ['claimRecords'], ['distributionStats'], ['poolRewardMemberView'], ['currentRoundFunding'], ['unallocatedPool'], ['commissionDashboard']],
   });
 }

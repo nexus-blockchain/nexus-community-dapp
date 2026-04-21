@@ -8,7 +8,7 @@ export const LOCALE_LABELS: Record<Locale, string> = {
   zh: '中文',
   fr: 'Français',
   de: 'Deutsch',
-  pt: 'Português',
+  pt: 'Port',
   ru: 'Русский',
   ar: 'العربية',
 };

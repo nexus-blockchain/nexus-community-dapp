@@ -1,7 +1,7 @@
 'use client';
 
 import { useEntityQuery, hasRuntimeApi } from './use-entity-query';
-import { STALE_TIMES } from '@/lib/chain/constants';
+import { REFETCH_INTERVALS, STALE_TIMES } from '@/lib/chain/constants';
 import type {
   MemberCommissionDashboard,
   DirectReferralInfo,
@@ -90,7 +90,7 @@ export function useCommissionDashboard(entityId: number | null, address: string 
       if (raw.isNone) return null;
       return parseCommissionDashboard(raw.unwrap().toJSON());
     },
-    { staleTime: STALE_TIMES.runtimeApi, enabled: entityId != null && !!address },
+    { staleTime: STALE_TIMES.runtimeApi, enabled: entityId != null && !!address, refetchInterval: REFETCH_INTERVALS.homepage },
   );
 }
 
@@ -176,7 +176,7 @@ export function useEntityCommissionOverview(entityId: number | null) {
         withdrawalPaused: data.withdrawalPaused ?? data.withdrawal_paused ?? false,
       };
     },
-    { staleTime: STALE_TIMES.runtimeApi, enabled: entityId != null },
+    { staleTime: STALE_TIMES.runtimeApi, enabled: entityId != null, refetchInterval: REFETCH_INTERVALS.homepage },
   );
 }
 

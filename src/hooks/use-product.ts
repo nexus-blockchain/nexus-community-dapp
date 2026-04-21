@@ -2,7 +2,7 @@
 
 import { useEntityQuery } from './use-entity-query';
 import { useEntityMutation } from './use-entity-mutation';
-import { STALE_TIMES } from '@/lib/chain/constants';
+import { REFETCH_INTERVALS, STALE_TIMES } from '@/lib/chain/constants';
 import { bytesToString, parseChainEnum } from '@/lib/utils/chain-helpers';
 import type { Product } from '@/lib/types';
 
@@ -39,7 +39,7 @@ export function useProduct(productId: number | null) {
       const data = raw.unwrap().toJSON();
       return parseProduct(data);
     },
-    { staleTime: STALE_TIMES.products, enabled: productId != null },
+    { staleTime: STALE_TIMES.products, enabled: productId != null, refetchInterval: REFETCH_INTERVALS.listing },
   );
 }
 
@@ -67,7 +67,7 @@ export function useShopProducts(shopId: number | null) {
         return b.sortWeight - a.sortWeight;
       });
     },
-    { staleTime: STALE_TIMES.products, enabled: shopId != null },
+    { staleTime: STALE_TIMES.products, enabled: shopId != null, refetchInterval: REFETCH_INTERVALS.listing },
   );
 }
 
@@ -95,7 +95,7 @@ export function useAllShopsProducts(shopIds: number[]) {
         return b.sortWeight - a.sortWeight;
       });
     },
-    { staleTime: STALE_TIMES.products, enabled: shopIds.length > 0 },
+    { staleTime: STALE_TIMES.products, enabled: shopIds.length > 0, refetchInterval: REFETCH_INTERVALS.listing },
   );
 }
 

@@ -28,9 +28,9 @@ import { TxStatusIndicator } from '@/components/ui/tx-status-indicator';
 export default function OrderDetailClient({ params }: { params: { id: string } }) {
   const t = useTranslations('order');
   const pathname = usePathname();
-  // In Capacitor SPA fallback, params.id is statically "0" from build time.
-  // Extract the real ID from the URL pathname instead.
-  const orderId = Number(pathname.split('/').filter(Boolean)[1] ?? params.id);
+  const pathSegments = pathname.split('/').filter(Boolean);
+  const pathId = pathSegments[pathSegments.length - 1];
+  const orderId = Number(pathId ?? params.id);
   const { data: order, isLoading } = useOrder(orderId);
   const { data: orderProduct } = useProduct(order?.productId ?? null);
   const { data: orderProductName } = useIpfsContent(orderProduct?.nameCid);
@@ -79,7 +79,7 @@ export default function OrderDetailClient({ params }: { params: { id: string } }
   const StatusIcon = st.icon;
   const displayAmount = order ? getOrderDisplayAmount(order) : '0';
   const displayUnit = order ? getOrderDisplayUnit(order) : 'NEX';
-  const paymentLabel = order ? getOrderPaymentLabel(order, displayUnit) : '';
+  const paymentLabel = order ? getOrderPaymentLabel(order, displayUnit, t('shoppingBalanceNex')) : '';
 
   const unitPriceDisplay = order?.paymentAsset === 'EntityToken'
     ? { amount: formatBalance(order.tokenPaymentAmount), unit: displayUnit, usdt: null }

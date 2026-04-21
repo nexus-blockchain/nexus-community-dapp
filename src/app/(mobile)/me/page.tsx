@@ -179,7 +179,7 @@ export default function MePage() {
   const queryClient = useQueryClient();
   const { address, isConnected, source } = useWalletStore();
   const { currentEntityId, entityName } = useEntityStore();
-  const { activeEndpoint } = useApi();
+  const { activeEndpoint, connectionStatus, error: connectionError, reconnect } = useApi();
   const nodes = useNodeHealthStore((s) => s.nodes);
   const { data: member, isLoading: memberLoading } = useMember(currentEntityId, address);
   const { data: orders } = useBuyerOrders(address);
@@ -196,6 +196,20 @@ export default function MePage() {
   // Find active node health info
   const activeNode = activeEndpoint ? nodes.find((n) => n.endpoint === activeEndpoint) : null;
   const nodeStatus: NodeStatus = activeNode?.status ?? 'unknown';
+  const isChainConnecting = connectionStatus === 'connecting';
+  const isChainUnavailable = connectionStatus === 'error' || connectionStatus === 'disconnected';
+  const balanceLabel = isChainConnecting
+    ? t('chainInfo.connecting')
+    : isChainUnavailable
+      ? t('chainInfo.notConnected')
+      : `${formatBalance(balance.toString())} NEX`;
+  const balanceSubLabel = isChainConnecting
+    ? t('chainInfo.connecting')
+    : isChainUnavailable
+      ? (connectionError || t('chainInfo.notConnected'))
+      : balanceUsdt != null
+        ? `≈ $${formatUsdt(balanceUsdt)} USDT`
+        : '≈ $0.00 USDT';
 
   const statusDotColor: Record<NodeStatus, string> = {
     healthy: 'bg-green-500',
@@ -231,6 +245,9 @@ export default function MePage() {
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
+    if (isChainUnavailable) {
+      reconnect();
+    }
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['nexBalance', address] }),
       queryClient.invalidateQueries({ queryKey: ['member'] }),
@@ -241,7 +258,7 @@ export default function MePage() {
       queryClient.invalidateQueries({ queryKey: ['referralTree'] }),
     ]);
     setTimeout(() => setRefreshing(false), 600);
-  }, [queryClient, address]);
+  }, [queryClient, address, isChainUnavailable, reconnect]);
 
   const activeOrders = (orders ?? []).filter((o) => !['Completed', 'Refunded', 'Cancelled'].includes(o.status));
 
@@ -277,9 +294,9 @@ export default function MePage() {
                       </Button>
                     </div>
                     <p className="text-lg font-bold mt-0.5">
-                      {formatBalance(balance.toString())} <span className="text-sm font-normal opacity-80">NEX</span>
-                      {balanceUsdt && <span className="text-sm font-normal opacity-70 ml-2">≈ ${formatUsdt(balanceUsdt)}</span>}
+                      {balanceLabel} {!isChainConnecting && !isChainUnavailable && <span className="text-sm font-normal opacity-80">NEX</span>}
                     </p>
+                    <p className="text-sm font-normal opacity-70 mt-0.5 truncate">{balanceSubLabel}</p>
                   </div>
                   <Button variant="ghost" size="icon" className="h-7 w-7 text-primary-foreground/70 hover:text-primary-foreground hover:bg-white/10"
                     onClick={(e) => { e.preventDefault(); handleRefresh(); }}>
@@ -307,17 +324,31 @@ export default function MePage() {
           </Link>
 
           {/* Network Status Badge */}
-          {isConnected && activeEndpoint && (
+          {isConnected && (
             <Link href="/chain">
               <div className="flex items-center gap-2 rounded-lg bg-secondary/50 border px-3 py-2 text-xs transition-colors hover:border-primary/30">
                 <span className="text-muted-foreground">{t('chainInfo.currentNode')}</span>
-                <span className={`h-2 w-2 rounded-full ${statusDotColor[nodeStatus]}`} />
-                <span className="font-mono text-muted-foreground truncate">{truncateEndpoint(activeEndpoint)}</span>
-                <span className="text-muted-foreground">·</span>
-                <span className={nodeStatus === 'healthy' ? 'text-green-600' : nodeStatus === 'slow' ? 'text-yellow-600' : nodeStatus === 'unhealthy' ? 'text-red-600' : 'text-muted-foreground'}>
-                  {statusLabel[nodeStatus]}
+                <span className={`h-2 w-2 rounded-full ${isChainConnecting || isChainUnavailable ? 'bg-gray-400' : statusDotColor[nodeStatus]}`} />
+                <span className="font-mono text-muted-foreground truncate">
+                  {activeEndpoint ? truncateEndpoint(activeEndpoint) : t(isChainConnecting ? 'chainInfo.connecting' : 'chainInfo.notConnected')}
                 </span>
-                {activeNode?.latencyMs != null && (
+                <span className="text-muted-foreground">·</span>
+                <span className={
+                  isChainConnecting
+                    ? 'text-muted-foreground'
+                    : isChainUnavailable
+                      ? 'text-red-600'
+                      : nodeStatus === 'healthy'
+                        ? 'text-green-600'
+                        : nodeStatus === 'slow'
+                          ? 'text-yellow-600'
+                          : nodeStatus === 'unhealthy'
+                            ? 'text-red-600'
+                            : 'text-muted-foreground'
+                }>
+                  {isChainConnecting ? t('chainInfo.connecting') : isChainUnavailable ? t('chainInfo.notConnected') : statusLabel[nodeStatus]}
+                </span>
+                {!isChainConnecting && !isChainUnavailable && activeNode?.latencyMs != null && (
                   <>
                     <span className="text-muted-foreground">·</span>
                     <span className="text-muted-foreground">{activeNode.latencyMs}ms</span>
@@ -327,7 +358,29 @@ export default function MePage() {
             </Link>
           )}
 
-          {/* Treasury overview — entity owner only */}
+          {isConnected && isChainUnavailable && (
+            <div className="flex items-center justify-between gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs">
+              <div className="min-w-0 flex-1">
+                <p className="font-medium text-destructive">{t('chainInfo.notConnected')}</p>
+                {connectionError && (
+                  <p className="truncate text-muted-foreground">{connectionError}</p>
+                )}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                disabled={isChainConnecting}
+                onClick={(e) => {
+                  e.preventDefault();
+                  reconnect();
+                }}
+              >
+                {isChainConnecting ? t('chainInfo.connecting') : t('common.retry')}
+              </Button>
+            </div>
+          )}
+
           {isConnected && isEntityOwner && currentEntityId != null && (
             <TreasuryCard entityId={currentEntityId} entityName={entityName ?? undefined} />
           )}

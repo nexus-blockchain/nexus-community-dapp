@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import { useNexMarketStats } from './use-nex-global-market';
 import { useEntityQuery } from './use-entity-query';
 import { usdtToNexDynamic, nexToUsdtDynamic } from '@/lib/utils/chain-helpers';
-import { STALE_TIMES } from '@/lib/chain/constants';
+import { REFETCH_INTERVALS, STALE_TIMES } from '@/lib/chain/constants';
 import type { TwapAccumulatorData } from '@/lib/types';
 
 /**
@@ -48,7 +48,10 @@ export function useNexPrice() {
       const raw = await (api.query as any).system.number();
       return Number(raw.toJSON?.() ?? raw);
     },
-    { staleTime: STALE_TIMES.orderBook },
+    {
+      staleTime: STALE_TIMES.orderBook,
+      refetchInterval: REFETCH_INTERVALS.homepage,
+    },
   );
 
   const marketRate = useMemo(() => {

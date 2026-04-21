@@ -7,7 +7,7 @@ import { useWalletStore } from '@/stores/wallet-store';
 import { useLocalAccountsStore } from '@/stores/local-accounts-store';
 import { decodeAddress } from '@polkadot/util-crypto';
 
-const APP_NAME = 'NEXUS Community dApp';
+const APP_NAME = 'NEXCOM';
 
 const SUPPORTED_WALLETS = ['polkadot-js', 'talisman', 'subwallet-js'] as const;
 export type SupportedWallet = (typeof SUPPORTED_WALLETS)[number];

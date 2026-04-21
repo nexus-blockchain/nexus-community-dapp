@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useWalletStore } from '@/stores/wallet-store';
-import { useLocalWallet } from '@/hooks/use-local-wallet';
+import { useLocalWallet, isLocalWalletError } from '@/hooks/use-local-wallet';
 import { shortAddress } from '@/lib/utils/chain-helpers';
 import {
   checkAttemptAllowed,
@@ -59,18 +59,33 @@ export function UnlockDialog() {
     setError('');
     setUnlocking(true);
     try {
-      await unlockWallet(address, password);
+      const pair = await unlockWallet(address, password);
+      pair.lock();
       recordSuccess(address);
       storeUnlock();
       setPassword('');
       setError('');
       setCooldown(0);
-    } catch {
-      recordFailure(address);
-      const checkAfterFailure = checkAttemptAllowed(address);
-      if (!checkAfterFailure.allowed) {
-        setCooldown(checkAfterFailure.waitSeconds);
-        setError(t(checkAfterFailure.errorKey!, { seconds: checkAfterFailure.waitSeconds }));
+    } catch (error) {
+      if (isLocalWalletError(error, 'WRONG_PASSWORD')) {
+        recordFailure(address);
+        const checkAfterFailure = checkAttemptAllowed(address);
+        if (!checkAfterFailure.allowed) {
+          setCooldown(checkAfterFailure.waitSeconds);
+          setError(t(checkAfterFailure.errorKey!, { seconds: checkAfterFailure.waitSeconds }));
+        } else {
+          setCooldown(0);
+          setError(t('unlockFailed'));
+        }
+      } else if (isLocalWalletError(error, 'ACCOUNT_NOT_FOUND')) {
+        setCooldown(0);
+        setError(t('localAccountMissing'));
+      } else if (
+        isLocalWalletError(error, 'INVALID_ACCOUNT_JSON')
+        || isLocalWalletError(error, 'INVALID_ACCOUNT_FORMAT')
+      ) {
+        setCooldown(0);
+        setError(t('localAccountCorrupted'));
       } else {
         setCooldown(0);
         setError(t('unlockFailed'));

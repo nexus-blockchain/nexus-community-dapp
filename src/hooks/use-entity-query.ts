@@ -59,6 +59,7 @@ export function useEntityQuery<T>(
 ): UseQueryResult<T> {
   const { api, isReady } = useApi();
   const isEnabled = isReady && !!api && (options?.enabled !== false);
+  const configuredRefetchInterval = options?.refetchInterval;
 
   return useQuery<T>({
     queryKey,
@@ -68,7 +69,13 @@ export function useEntityQuery<T>(
     },
     enabled: isEnabled,
     staleTime: options?.staleTime,
-    refetchInterval: options?.refetchInterval,
+    refetchInterval: configuredRefetchInterval != null
+      ? () => {
+          if (typeof document !== 'undefined' && document.hidden) return false;
+          return configuredRefetchInterval;
+        }
+      : undefined,
+    refetchOnWindowFocus: configuredRefetchInterval != null ? 'always' : undefined,
     retry: (failureCount, error) => {
       if (isPalletMissing(error)) return false;
       return failureCount < RETRY_CONFIG.chainQuery.retry;

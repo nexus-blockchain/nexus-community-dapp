@@ -8,11 +8,11 @@
     "me": "マイページ"
   },
   "home": {
-    "title": "ERNVコミュニティ",
+    "title": "NEXCOM",
     "welcome": "{name}へようこそ",
-    "welcomeDefault": "ERNVコミュニティプラットフォームへようこそ",
+    "welcomeDefault": "NEXCOMへようこそ",
     "welcomePrefix": "ようこそ",
-    "welcomeDefaultName": "ERNVコミュニティプラットフォーム",
+    "welcomeDefaultName": "NEXCOM",
     "subtitle": "ブロックチェーンとNEXでより良い未来を築こう！",
     "directReferrals": "直推 {count}",
     "teamSize": "合計 {count}",
@@ -993,9 +993,9 @@
   },
   "about": {
     "title": "私たちについて",
-    "projectName": "NEXUSコミュニティ",
+    "projectName": "NEXCOM",
     "slogan": "分散型コミュニティコマースプラットフォーム",
-    "description": "NEXUSはSubstrate上に構築された分散型コミュニティコマースプラットフォームで、ブロックチェーン技術を通じて消費者と実店舗を結び、透明で信頼できる商業エコシステムを実現します。",
+    "description": "NEXCOMはSubstrate上に構築された分散型コミュニティコマースプラットフォームで、ブロックチェーン技術を通じて消費者と実店舗を結び、透明で信頼できる商業エコシステムを実現します。",
     "features": "主要機能",
     "featureDecentralized": "分散型",
     "featureDecentralizedDesc": "Substrateブロックチェーン上に構築され、データは透明かつ改ざん不能です",

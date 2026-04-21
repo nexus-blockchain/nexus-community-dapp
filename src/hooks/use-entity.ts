@@ -15,7 +15,7 @@ export function useAllEntities() {
       for (const [, raw] of entries) {
         if (raw.isNone) continue;
         const data = raw.unwrap().toJSON();
-        const status = data.status ?? 'Active';
+        const status = parseChainEnum(data.status, 'Active');
         if (status !== 'Active') continue;
         const name = bytesToString(data.name);
         entities.push({
@@ -50,7 +50,7 @@ export function useEntity(entityId: number | null) {
         owner: data.owner ?? '',
         name,
         entityType: parseChainEnum(data.entityType ?? data.entity_type, 'Merchant'),
-        status: data.status ?? 'Active',
+        status: parseChainEnum(data.status, 'Active'),
         verified: data.verified ?? false,
         primaryShopId: data.primaryShopId ?? data.primary_shop_id ?? 0,
         createdAt: data.createdAt ?? data.created_at ?? 0,

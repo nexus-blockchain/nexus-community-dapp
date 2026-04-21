@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { copyToClipboard } from '@/lib/utils/clipboard';
+import { scanQrCode, scanQrCodeFromImage } from '@/lib/utils/qr-scanner';
 import { useToast } from '@/components/ui/use-toast';
 import { MobileHeader } from '@/components/layout/mobile-header';
 import { PageContainer } from '@/components/layout/page-container';
@@ -22,7 +23,7 @@ import { useWalletStore } from '@/stores';
 import { useLocalAccountsStore } from '@/stores/local-accounts-store';
 import { useEntityStore } from '@/stores/entity-store';
 import { useWallet } from '@/hooks/use-wallet';
-import { useLocalWallet } from '@/hooks/use-local-wallet';
+import { useLocalWallet, isLocalWalletError } from '@/hooks/use-local-wallet';
 import { useNexBalance } from '@/hooks/use-nex-balance';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useQueryClient } from '@tanstack/react-query';
@@ -350,7 +351,7 @@ function ImportWalletDialog({
 function ExportMnemonicDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const t = useTranslations('wallet');
   const { address } = useWalletStore();
-  const { exportMnemonic } = useLocalWallet();
+  const { exportMnemonic, getUnlockErrorMessage } = useLocalWallet();
   const [password, setPassword] = useState('');
   const [mnemonicWords, setMnemonicWords] = useState<string[]>([]);
   const [notStored, setNotStored] = useState(false);
@@ -368,14 +369,22 @@ function ExportMnemonicDialog({ open, onOpenChange }: { open: boolean; onOpenCha
       const mnemonic = await exportMnemonic(address, password);
       setMnemonicWords(mnemonic.split(' '));
     } catch (e) {
-      if (e instanceof Error && e.message === 'MNEMONIC_NOT_STORED') {
+      if (isLocalWalletError(e, 'MNEMONIC_NOT_STORED')) {
         setNotStored(true);
       } else if (e instanceof Error && e.message.startsWith('ACCOUNT_LOCKED:')) {
         setError(t('accountLockedOut', { seconds: e.message.split(':')[1] }));
       } else if (e instanceof Error && e.message.startsWith('TOO_MANY_ATTEMPTS:')) {
         setError(t('tooManyAttempts', { seconds: e.message.split(':')[1] }));
+      } else if (isLocalWalletError(e, 'ACCOUNT_NOT_FOUND')) {
+        setError(t('localAccountMissing'));
+      } else if (
+        isLocalWalletError(e, 'INVALID_ACCOUNT_JSON')
+        || isLocalWalletError(e, 'INVALID_ACCOUNT_FORMAT')
+        || isLocalWalletError(e, 'MNEMONIC_DECRYPT_FAILED')
+      ) {
+        setError(t('localAccountCorrupted'));
       } else {
-        setError(t('unlockFailed'));
+        setError(getUnlockErrorMessage(e));
       }
     } finally { setUnlocking(false); }
   };
@@ -485,10 +494,92 @@ export default function WalletPage() {
   const [showTransfer, setShowTransfer] = useState(false);
   const [showReceive, setShowReceive] = useState(false);
   const [showExport, setShowExport] = useState(false);
+  const [showScanOptions, setShowScanOptions] = useState(false);
+  const [scanBusy, setScanBusy] = useState(false);
+  const [initialRecipient, setInitialRecipient] = useState('');
+  const qrImageInputRef = useRef<HTMLInputElement>(null);
+
+  const openTransferWithScannedResult = useCallback((result: string) => {
+    const recipient = result.trim();
+    if (!recipient) return;
+    setInitialRecipient(recipient);
+    setShowTransfer(true);
+    setShowScanOptions(false);
+  }, []);
 
   const handleScanQr = useCallback(() => {
-    toast({ title: t('wallet.scanNotSupported'), variant: 'destructive' });
-  }, [toast, t]);
+    setShowScanOptions(true);
+  }, []);
+
+  const handleCameraScan = useCallback(async () => {
+    setScanBusy(true);
+    try {
+      const result = await scanQrCode();
+      openTransferWithScannedResult(result);
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message === 'NOT_NATIVE') {
+          toast({ title: t('wallet.scanNotSupported'), variant: 'destructive' });
+          return;
+        }
+
+        if (error.message === 'SCAN_CANCELLED') {
+          return;
+        }
+      }
+
+      console.error('QR scan failed', error);
+      toast({ title: t('wallet.scanFailed'), variant: 'destructive' });
+    } finally {
+      setScanBusy(false);
+    }
+  }, [openTransferWithScannedResult, toast, t]);
+
+  const handleAlbumScan = useCallback(() => {
+    qrImageInputRef.current?.click();
+  }, []);
+
+  const handleQrImageSelected = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    setScanBusy(true);
+    try {
+      const result = await scanQrCodeFromImage(file);
+      openTransferWithScannedResult(result);
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message === 'NO_QR_FOUND') {
+          toast({ title: t('wallet.noQrFound'), variant: 'destructive' });
+          return;
+        }
+
+        if (error.message === 'INVALID_IMAGE') {
+          toast({ title: t('wallet.invalidImage'), variant: 'destructive' });
+          return;
+        }
+      }
+
+      console.error('QR image decode failed', error);
+      toast({ title: t('wallet.scanFailed'), variant: 'destructive' });
+    } finally {
+      setScanBusy(false);
+    }
+  }, [openTransferWithScannedResult, toast, t]);
+
+  const handleTransferOpenChange = useCallback((open: boolean) => {
+    if (!open) {
+      setInitialRecipient('');
+    }
+    setShowTransfer(open);
+  }, []);
+
+  const handleScanOptionsOpenChange = useCallback((open: boolean) => {
+    if (!scanBusy) {
+      setShowScanOptions(open);
+    }
+  }, [scanBusy]);
 
   const handleRefreshBalance = useCallback(async () => {
     await Promise.all([
@@ -764,9 +855,34 @@ export default function WalletPage() {
         </div>
       </PageContainer>
 
+      <input
+        ref={qrImageInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleQrImageSelected}
+      />
       <CreateWalletDialog open={showCreate} onOpenChange={setShowCreate} onCreated={handleCreated} />
       <ImportWalletDialog open={showImport} onOpenChange={setShowImport} onImported={handleImported} />
-      <TransferDialog open={showTransfer} onOpenChange={setShowTransfer} />
+      <TransferDialog open={showTransfer} onOpenChange={handleTransferOpenChange} initialRecipient={initialRecipient} />
+      <Dialog open={showScanOptions} onOpenChange={handleScanOptionsOpenChange}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t('wallet.scanOptionsTitle')}</DialogTitle>
+            <DialogDescription>{t('wallet.scanOptionsDesc')}</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2">
+            <Button className="w-full" onClick={handleCameraScan} disabled={scanBusy}>
+              {scanBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ScanLine className="mr-2 h-4 w-4" />}
+              {t('wallet.scanWithCamera')}
+            </Button>
+            <Button variant="outline" className="w-full" onClick={handleAlbumScan} disabled={scanBusy}>
+              {scanBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <QrCode className="mr-2 h-4 w-4" />}
+              {t('wallet.scanFromAlbum')}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
       <ReceiveDialog open={showReceive} onOpenChange={setShowReceive} />
       <ExportMnemonicDialog open={showExport} onOpenChange={setShowExport} />
     </>

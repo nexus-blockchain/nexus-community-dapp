@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useState, useEffect, useRef } from 'react';
+import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { NextIntlClientProvider } from 'next-intl';
 import { cryptoWaitReady } from '@polkadot/util-crypto';
 import { ApiProvider } from '@/lib/chain/api-provider';
@@ -18,6 +18,56 @@ import { getMessages, defaultMessages, defaultLocale, type Locale } from '@/i18n
 
 // Pre-warm WASM crypto so wallet creation/import is instant
 cryptoWaitReady().catch(() => {});
+
+const LIVE_REFRESH_KEYS = [
+  ['nexMarketStats'],
+  ['nexGlobalOrderBook'],
+  ['nexUserOrders'],
+  ['nexUserTrades'],
+  ['nexCompletedBuyer'],
+  ['nexActiveWaivedTrade'],
+  ['order'],
+  ['buyerOrders'],
+  ['shopOrders'],
+  ['nexBalance'],
+  ['tokenBalance'],
+  ['memberDashboard'],
+  ['shop'],
+  ['shopProducts'],
+  ['entityTradeHistory'],
+  ['product'],
+  ['entityShops'],
+  ['allShopsProducts'],
+  ['governanceOverview'],
+  ['entityProposals'],
+  ['referralTree'],
+  ['referralsByGeneration'],
+  ['tokenShoppingBalance'],
+  ['pointsBalance'],
+] as const;
+
+const EARNINGS_REFRESH_KEYS = [
+  ['commissionDashboard'],
+  ['memberCommissionStats'],
+  ['memberTokenCommissionStats'],
+  ['entityCommissionOverview'],
+  ['singleLineMemberView'],
+  ['singleLineOverview'],
+  ['singleLinePosition'],
+  ['singleLineQueue'],
+  ['singleLineCommissionRecords'],
+  ['withdrawalRecords'],
+  ['multiLevelMemberStats'],
+  ['multiLevelPayouts'],
+  ['currentRound'],
+  ['currentRoundFunding'],
+  ['unallocatedPool'],
+  ['poolRewardMemberView'],
+  ['claimRecords'],
+  ['shoppingBalance'],
+  ['tokenShoppingBalance'],
+  ['repurchaseConfig'],
+] as const;
 
 function makeQueryClient() {
   return new QueryClient({
@@ -87,6 +137,70 @@ function StoreHydration() {
   return null;
 }
 
+function LiveRefreshBridge() {
+  const queryClient = useQueryClient();
+  const entityHydrated = useEntityStore((s) => s._hydrated);
+  const hydratedRefreshDoneRef = useRef(false);
+
+  useEffect(() => {
+    const refresh = () => {
+      for (const queryKey of LIVE_REFRESH_KEYS) {
+        queryClient.invalidateQueries({ queryKey: [...queryKey] });
+      }
+    };
+
+    if (entityHydrated && !hydratedRefreshDoneRef.current) {
+      hydratedRefreshDoneRef.current = true;
+      refresh();
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refresh();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [entityHydrated, queryClient]);
+
+  return null;
+}
+
+function EarningsRefreshBridge() {
+  const queryClient = useQueryClient();
+  const entityHydrated = useEntityStore((s) => s._hydrated);
+  const hydratedRefreshDoneRef = useRef(false);
+
+  useEffect(() => {
+    const refresh = () => {
+      for (const queryKey of EARNINGS_REFRESH_KEYS) {
+        queryClient.invalidateQueries({ queryKey: [...queryKey] });
+      }
+    };
+
+    if (entityHydrated && !hydratedRefreshDoneRef.current) {
+      hydratedRefreshDoneRef.current = true;
+      refresh();
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refresh();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [entityHydrated, queryClient]);
+
+  return null;
+}
+
 export function Providers({ children }: { children: React.ReactNode }) {
   const queryClient = getQueryClient();
 
@@ -100,6 +214,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
           <SigningDialog />
           <ConfirmDialog />
           <StoreHydration />
+          <LiveRefreshBridge />
+          <EarningsRefreshBridge />
         </IntlProvider>
       </ApiProvider>
     </QueryClientProvider>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEntityQuery, hasRuntimeApi } from './use-entity-query';
-import { STALE_TIMES } from '@/lib/chain/constants';
+import { REFETCH_INTERVALS, STALE_TIMES } from '@/lib/chain/constants';
 import { bytesToString } from '@/lib/utils/chain-helpers';
 import type {
   MemberDashboardInfo,
@@ -79,7 +79,7 @@ export function useMemberDashboard(entityId: number | null, address: string | nu
         })),
       };
     },
-    { staleTime: STALE_TIMES.runtimeApi, enabled: entityId != null && !!address },
+    { staleTime: STALE_TIMES.runtimeApi, enabled: entityId != null && !!address, refetchInterval: REFETCH_INTERVALS.member },
   );
 }
 
@@ -179,7 +179,7 @@ export function useReferralTree(entityId: number | null, address: string | null,
         .getReferralTree(entityId, address, depth ?? 3);
       return parseTreeNode(raw.toJSON());
     },
-    { staleTime: STALE_TIMES.runtimeApi, enabled: entityId != null && !!address },
+    { staleTime: STALE_TIMES.runtimeApi, enabled: entityId != null && !!address, refetchInterval: REFETCH_INTERVALS.listing },
   );
 }
 
@@ -216,6 +216,6 @@ export function useReferralsByGeneration(
         hasMore: data.hasMore ?? data.has_more ?? false,
       };
     },
-    { staleTime: STALE_TIMES.runtimeApi, enabled: entityId != null && !!address },
+    { staleTime: STALE_TIMES.runtimeApi, enabled: entityId != null && !!address, refetchInterval: REFETCH_INTERVALS.listing },
   );
 }

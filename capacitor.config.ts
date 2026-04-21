@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.nexus.community',
-  appName: 'Nexus Community',
+  appName: 'NEXCOM',
   webDir: 'out',
   server: {
     // Use HTTP scheme so that ws:// WebSocket connections (Substrate node)

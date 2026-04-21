@@ -2,7 +2,7 @@
 
 import { useEntityQuery, hasPallet } from './use-entity-query';
 import { useEntityStore } from '@/stores';
-import { STALE_TIMES } from '@/lib/chain/constants';
+import { REFETCH_INTERVALS, STALE_TIMES } from '@/lib/chain/constants';
 import { shortAddress } from '@/lib/utils/chain-helpers';
 
 // ─────────────────────────────────────────────
@@ -170,7 +170,7 @@ export function useGovernanceOverview(entityId: number | null) {
 
       return { config, locked, paused, palletAvailable: true };
     },
-    { staleTime: STALE_TIMES.proposals, enabled: entityId != null },
+    { staleTime: STALE_TIMES.proposals, enabled: entityId != null, refetchInterval: REFETCH_INTERVALS.listing },
   );
 }
 
@@ -232,6 +232,6 @@ export function useEntityProposals(entityId: number | null) {
 
       return proposals;
     },
-    { staleTime: STALE_TIMES.proposals, enabled: entityId != null },
+    { staleTime: STALE_TIMES.proposals, enabled: entityId != null, refetchInterval: REFETCH_INTERVALS.listing },
   );
 }

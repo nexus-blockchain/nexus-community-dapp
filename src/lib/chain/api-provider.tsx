@@ -2,20 +2,35 @@
 
 import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import { ApiPromise, WsProvider } from '@polkadot/api';
+import type { ProviderInterface } from '@polkadot/rpc-provider/types';
 import { getConfiguredEndpoints, getSeedEndpoints, NODE_HEALTH_CONFIG, filterAllowedEndpoints } from './constants';
 import {
   discoverPeers,
   probeEndpointsBatch,
   selectBestNode,
   shouldAutoSwitch,
+  mergeCachedNodes,
   loadCachedNodes,
   saveCachedNodes,
-  mergeCachedNodes,
 } from './peer-discovery';
 import { runtimeDefs, customTypes } from './runtime-defs';
 import { useNodeHealthStore } from '@/stores/node-health-store';
 
 type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
+
+const DEBUG_WS =
+  process.env.NODE_ENV === 'development' &&
+  typeof window !== 'undefined' &&
+  (window.location.protocol === 'capacitor:' || window.location.hostname === 'localhost' || window.location.search.includes('debugWs=1'));
+
+function logWs(event: string, details?: unknown): void {
+  if (!DEBUG_WS || typeof window === 'undefined') return;
+  if (details === undefined) {
+    console.log(`[nexus-ws] ${event}`);
+    return;
+  }
+  console.log(`[nexus-ws] ${event}`, details);
+}
 
 interface ApiContextValue {
   api: ApiPromise | null;
@@ -24,6 +39,7 @@ interface ApiContextValue {
   error: string | null;
   activeEndpoint: string | null;
   switchNode: (endpoint: string) => void;
+  reconnect: () => void;
   discoveredNodeCount: number;
   isDiscovering: boolean;
   addManualNode: (endpoint: string) => Promise<boolean>;
@@ -36,6 +52,7 @@ const ApiContext = createContext<ApiContextValue>({
   error: null,
   activeEndpoint: null,
   switchNode: () => {},
+  reconnect: () => {},
   discoveredNodeCount: 0,
   isDiscovering: false,
   addManualNode: async () => false,
@@ -83,7 +100,8 @@ export function ApiProvider({
   const [discoveredNodeCount, setDiscoveredNodeCount] = useState(0);
   const [isDiscovering, setIsDiscovering] = useState(false);
   const apiRef = useRef<ApiPromise | null>(null);
-  const providerRef = useRef<WsProvider | null>(null);
+  const providerRef = useRef<ProviderInterface | null>(null);
+  const connectAttemptRef = useRef(0);
   const probeTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const bgProbeTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const discoveryTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -99,19 +117,31 @@ export function ApiProvider({
 
   const endpointsRef = useRef<string[]>([]);
   const discoveredEndpointsRef = useRef<string[]>([]);
+  const failoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const failoverAttemptsRef = useRef(0);
 
   // -----------------------------------------------------------------------
   // Helper: create a WsProvider + ApiPromise connection
   // -----------------------------------------------------------------------
   const createConnection = useCallback(
     (ordered: string[]) => {
-      // Disconnect existing
+      const attemptId = ++connectAttemptRef.current;
+      logWs('createConnection:start', { attemptId, ordered });
+
+      // Disconnect existing established connection
       if (apiRef.current) {
+        logWs('createConnection:disconnect-api', { attemptId });
         apiRef.current.disconnect().catch(() => {});
         apiRef.current = null;
       }
+      if (providerRef.current) {
+        logWs('createConnection:disconnect-provider', { attemptId });
+        providerRef.current.disconnect().catch(() => {});
+        providerRef.current = null;
+      }
 
       if (ordered.length === 0) {
+        logWs('createConnection:no-endpoints', { attemptId });
         setConnectionStatus('error');
         setError('No valid WebSocket endpoints configured');
         return;
@@ -121,27 +151,107 @@ export function ApiProvider({
       setError(null);
 
       const provider = new WsProvider(ordered, 2500);
-      providerRef.current = provider;
+      logWs('provider:constructed', { attemptId, endpoints: ordered });
 
       provider.on('connected', () => {
+        if (connectAttemptRef.current !== attemptId) {
+          logWs('provider:connected:stale', { attemptId, currentAttempt: connectAttemptRef.current });
+          return;
+        }
         const ep = (provider as unknown as { endpoint: string }).endpoint ?? ordered[0];
+        logWs('provider:connected', { attemptId, endpoint: ep });
         setActiveEndpointLocal(ep);
         setStoreActiveEndpoint(ep);
+        // Reset failover counter on successful connection
+        failoverAttemptsRef.current = 0;
+        if (failoverTimerRef.current) {
+          clearTimeout(failoverTimerRef.current);
+          failoverTimerRef.current = null;
+        }
       });
 
       provider.on('disconnected', () => {
+        if (connectAttemptRef.current !== attemptId) {
+          logWs('provider:disconnected:stale', { attemptId, currentAttempt: connectAttemptRef.current });
+          return;
+        }
+        logWs('provider:disconnected', { attemptId });
         setConnectionStatus('disconnected');
         setIsReady(false);
+
+        // --- Auto-failover: try switching to another node after a delay ---
+        if (!failoverTimerRef.current && endpointsRef.current.length > 1) {
+          const attempt = ++failoverAttemptsRef.current;
+          // Exponential backoff: 5s, 10s, 20s, max 30s
+          const delay = Math.min(5000 * Math.pow(2, attempt - 1), 30000);
+          logWs('failover:scheduled', { attempt, delay });
+          failoverTimerRef.current = setTimeout(async () => {
+            failoverTimerRef.current = null;
+            // Probe all endpoints to find a healthy one
+            const candidates = endpointsRef.current;
+            logWs('failover:probing', { attempt, candidates });
+            const results = await probeEndpointsBatch(candidates, 3, NODE_HEALTH_CONFIG.discoveryProbeTimeout);
+            for (const r of results) {
+              recordProbeSuccess(r.endpoint, r.latencyMs, r.blockHeight);
+            }
+            const best = selectBestNode(results);
+            if (best) {
+              logWs('failover:switching', { attempt, endpoint: best.endpoint });
+              // Disconnect stale provider/api before switching
+              if (apiRef.current) {
+                apiRef.current.disconnect().catch(() => {});
+                apiRef.current = null;
+              }
+              if (providerRef.current) {
+                providerRef.current.disconnect().catch(() => {});
+                providerRef.current = null;
+              }
+              setApi(null);
+              setActiveEndpointLocal(null);
+              const nodes = useNodeHealthStore.getState().nodes;
+              const rest = candidates.filter((e) => e !== best.endpoint);
+              const reordered = [best.endpoint, ...orderEndpoints(rest, null, nodes)];
+              createConnection(reordered);
+            } else {
+              logWs('failover:no-healthy-node', { attempt });
+            }
+          }, delay);
+        }
       });
 
-      provider.on('error', () => {
+      provider.on('error', (providerError) => {
+        if (connectAttemptRef.current !== attemptId) {
+          logWs('provider:error:stale', { attemptId, currentAttempt: connectAttemptRef.current });
+          return;
+        }
+        const errorDetails = providerError instanceof Event
+          ? {
+              type: providerError.type,
+              targetUrl: (providerError.target as WebSocket | null)?.url,
+              readyState: (providerError.target as WebSocket | null)?.readyState,
+            }
+          : providerError instanceof Error
+            ? { message: providerError.message, stack: providerError.stack }
+            : { value: String(providerError) };
+        logWs('provider:error', {
+          attemptId,
+          error: errorDetails,
+        });
         setConnectionStatus('error');
         setError('WebSocket connection error');
       });
 
+      logWs('api:create:start', { attemptId });
       ApiPromise.create({ provider, types: customTypes, runtime: runtimeDefs })
         .then((apiInstance) =>
           apiInstance.isReady.then(() => {
+            if (connectAttemptRef.current !== attemptId) {
+              logWs('api:isReady:stale', { attemptId, currentAttempt: connectAttemptRef.current });
+              apiInstance.disconnect().catch(() => {});
+              return;
+            }
+            logWs('api:isReady', { attemptId });
+            providerRef.current = provider;
             apiRef.current = apiInstance;
             setApi(apiInstance);
             setIsReady(true);
@@ -149,6 +259,12 @@ export function ApiProvider({
           }),
         )
         .catch((err) => {
+          if (connectAttemptRef.current !== attemptId) {
+            logWs('api:create:error:stale', { attemptId, currentAttempt: connectAttemptRef.current });
+            return;
+          }
+          provider.disconnect().catch(() => {});
+          logWs('api:create:error', { attemptId, error: err instanceof Error ? err.message : String(err) });
           setConnectionStatus('error');
           setError(err instanceof Error ? err.message : 'Failed to connect');
         });
@@ -161,36 +277,70 @@ export function ApiProvider({
   // -----------------------------------------------------------------------
   const connect = useCallback(() => {
     const seeds = getSeedEndpoints();
-    const cached = filterAllowedEndpoints(loadCachedNodes().map((n) => n.endpoint));
     const trustedEndpoints = endpoint ? filterAllowedEndpoints([endpoint]) : getConfiguredEndpoints();
     endpointsRef.current = trustedEndpoints;
-    discoveredEndpointsRef.current = cached.filter((ep) => !trustedEndpoints.includes(ep));
+    discoveredEndpointsRef.current = [];
 
     // Initialize store: trusted auto-connect endpoints vs discovered-only endpoints
     const seedSet = new Set(seeds);
     const seedEndpoints = trustedEndpoints.filter((e) => seedSet.has(e));
     const nonSeedTrustedEndpoints = trustedEndpoints.filter((e) => !seedSet.has(e));
-    const discoveredEndpoints = discoveredEndpointsRef.current.filter((e) => !trustedEndpoints.includes(e));
+    const discoveredEndpoints: string[] = [];
     initNodes(
       seedEndpoints.length > 0 ? seedEndpoints : trustedEndpoints,
       [...nonSeedTrustedEndpoints, ...discoveredEndpoints],
     );
     setDiscoveredNodeCount(discoveredEndpointsRef.current.length);
 
-    // Read latest values from store instead of stale closure
+    // If user has a preferred endpoint, connect to it directly
     const currentState = useNodeHealthStore.getState();
-    const ordered = orderEndpoints(trustedEndpoints, currentState.preferredEndpoint, currentState.nodes);
-    createConnection(ordered);
+    if (currentState.preferredEndpoint) {
+      const ordered = orderEndpoints(trustedEndpoints, currentState.preferredEndpoint, currentState.nodes);
+      createConnection(ordered);
+      return;
+    }
+
+    // Probe all endpoints first, then connect to the fastest one
+    setConnectionStatus('connecting');
+    logWs('connect:probing-all', { endpoints: trustedEndpoints });
+    probeEndpointsBatch(trustedEndpoints, trustedEndpoints.length, NODE_HEALTH_CONFIG.discoveryProbeTimeout)
+      .then((results) => {
+        for (const r of results) {
+          recordProbeSuccess(r.endpoint, r.latencyMs, r.blockHeight);
+        }
+        const best = selectBestNode(results);
+        if (best) {
+          logWs('connect:fastest', { endpoint: best.endpoint, latencyMs: best.latencyMs });
+          const rest = trustedEndpoints.filter((e) => e !== best.endpoint);
+          const nodes = useNodeHealthStore.getState().nodes;
+          const ordered = [best.endpoint, ...orderEndpoints(rest, null, nodes)];
+          createConnection(ordered);
+        } else {
+          // All probes failed, fall back to default order
+          logWs('connect:probe-all-failed');
+          createConnection(trustedEndpoints);
+        }
+      })
+      .catch(() => {
+        createConnection(trustedEndpoints);
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [endpoint]);
 
   useEffect(() => {
+    logWs('effect:connect');
     connect();
     return () => {
+      connectAttemptRef.current += 1;
+      logWs('effect:cleanup', { currentAttempt: connectAttemptRef.current });
       if (probeTimerRef.current) clearInterval(probeTimerRef.current);
       if (bgProbeTimerRef.current) clearInterval(bgProbeTimerRef.current);
       if (discoveryTimerRef.current) clearInterval(discoveryTimerRef.current);
-      apiRef.current?.disconnect();
+      if (failoverTimerRef.current) { clearTimeout(failoverTimerRef.current); failoverTimerRef.current = null; }
+      providerRef.current?.disconnect().catch(() => {});
+      providerRef.current = null;
+      apiRef.current?.disconnect().catch(() => {});
+      apiRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connect]);
@@ -285,7 +435,7 @@ export function ApiProvider({
   }, [isReady, activeEndpoint]);
 
   // -----------------------------------------------------------------------
-  // Peer discovery (every 60s when API is ready)
+  // Peer discovery cycle (every 60s): discover new nodes, probe, add to store
   // -----------------------------------------------------------------------
   useEffect(() => {
     if (discoveryTimerRef.current) clearInterval(discoveryTimerRef.current);
@@ -297,55 +447,65 @@ export function ApiProvider({
 
       setIsDiscovering(true);
       try {
-        const candidateEndpoints = filterAllowedEndpoints(await discoverPeers(currentApi));
-        if (candidateEndpoints.length === 0) return;
+        // 1. Discover peer endpoints from the connected node
+        const newEndpoints = await discoverPeers(currentApi);
 
-        // Filter out already-known endpoints
-        const known = new Set(useNodeHealthStore.getState().nodes.map((n) => n.endpoint));
-        const newCandidates = candidateEndpoints.filter((ep) => !known.has(ep));
+        // 2. Merge with cached nodes
+        const cached = loadCachedNodes();
+        const merged = mergeCachedNodes(cached, newEndpoints);
+        saveCachedNodes(merged);
 
-        // Probe new candidates
-        const probeResults = await probeEndpointsBatch(
-          newCandidates,
+        // 3. Collect all unique discovered endpoints (new + cached)
+        const allDiscovered = Array.from(new Set(merged.map((n) => n.endpoint)));
+        discoveredEndpointsRef.current = allDiscovered;
+        setDiscoveredNodeCount(allDiscovered.length);
+
+        // 4. Probe discovered endpoints to check availability
+        const results = await probeEndpointsBatch(
+          allDiscovered,
           3,
           NODE_HEALTH_CONFIG.discoveryProbeTimeout,
         );
 
-        // Only add endpoints that responded successfully
-        const reachable = probeResults.map((r) => r.endpoint);
-
-        if (reachable.length > 0) {
-          // Update store
-          for (const ep of reachable) {
-            addNodeToStore(ep, 'discovered');
-          }
-
-          // Keep discovered endpoints visible and probed, but do not add them to
-          // the trusted auto-connect / auto-switch candidate set.
-          for (const ep of reachable) {
-            if (!discoveredEndpointsRef.current.includes(ep)) {
-              discoveredEndpointsRef.current.push(ep);
-            }
-          }
-
-          // Record probe results
-          for (const r of probeResults) {
-            recordProbeSuccess(r.endpoint, r.latencyMs, r.blockHeight);
+        // 5. Add reachable nodes to the store and endpoint list
+        for (const r of results) {
+          addNodeToStore(r.endpoint, 'discovered');
+          recordProbeSuccess(r.endpoint, r.latencyMs, r.blockHeight);
+          if (!endpointsRef.current.includes(r.endpoint)) {
+            endpointsRef.current.push(r.endpoint);
           }
         }
 
-        // Update localStorage cache (include both old cached + newly discovered)
-        const oldCached = loadCachedNodes();
-        const allDiscovered = mergeCachedNodes(oldCached, reachable);
-        saveCachedNodes(allDiscovered);
-        setDiscoveredNodeCount(allDiscovered.length);
+        // 6. Re-init store with updated endpoint lists
+        const seeds = getSeedEndpoints();
+        const seedSet = new Set(seeds);
+        initNodes(
+          endpointsRef.current.filter((e) => seedSet.has(e)),
+          endpointsRef.current.filter((e) => !seedSet.has(e)),
+        );
+
+        // 7. Auto-switch check with newly discovered nodes
+        const state = useNodeHealthStore.getState();
+        const currentNode = state.nodes.find((n) => n.endpoint === activeEndpoint) ?? null;
+        const allResults = [
+          ...results,
+          ...(currentNode && currentNode.latencyMs != null && currentNode.blockHeight != null
+            ? [{ endpoint: currentNode.endpoint, latencyMs: currentNode.latencyMs, blockHeight: currentNode.blockHeight }]
+            : []),
+        ];
+        const best = selectBestNode(allResults, activeEndpoint ?? undefined);
+        if (best && shouldAutoSwitch(currentNode, best, state.preferredEndpoint, activeEndpoint)) {
+          autoSwitchNode(best.endpoint);
+        }
+      } catch {
+        // Discovery failure is non-fatal
       } finally {
         setIsDiscovering(false);
       }
     };
 
-    // First run after a small delay to let initial connection stabilize
-    const initialTimer = setTimeout(runDiscovery, 5000);
+    // Run first discovery after a short delay to let the connection stabilize
+    const initialTimer = setTimeout(runDiscovery, 5_000);
     discoveryTimerRef.current = setInterval(runDiscovery, NODE_HEALTH_CONFIG.discoveryInterval);
 
     return () => {
@@ -353,10 +513,8 @@ export function ApiProvider({
       if (discoveryTimerRef.current) clearInterval(discoveryTimerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isReady, api]);
+  }, [isReady, api, activeEndpoint]);
 
-  // -----------------------------------------------------------------------
-  // Auto-switch: switch without setting preferred (so auto-select continues)
   // -----------------------------------------------------------------------
   const autoSwitchNode = useCallback(
     (ep: string) => {
@@ -415,14 +573,9 @@ export function ApiProvider({
       const results = await probeEndpointsBatch([allowedEndpoint], 1, NODE_HEALTH_CONFIG.discoveryProbeTimeout);
       if (results.length === 0) return false;
 
-      addNodeToStore(allowedEndpoint, 'manual');
-      if (!endpointsRef.current.includes(allowedEndpoint)) {
-        endpointsRef.current.push(allowedEndpoint);
-      }
-      recordProbeSuccess(results[0].endpoint, results[0].latencyMs, results[0].blockHeight);
       return true;
     },
-    [addNodeToStore, recordProbeSuccess],
+    [],
   );
 
   return (
@@ -434,6 +587,7 @@ export function ApiProvider({
         error,
         activeEndpoint,
         switchNode,
+        reconnect: connect,
         discoveredNodeCount,
         isDiscovering,
         addManualNode,

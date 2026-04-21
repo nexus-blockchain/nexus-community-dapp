@@ -2,7 +2,7 @@
 
 import { useEntityQuery } from './use-entity-query';
 import { useEntityMutation } from './use-entity-mutation';
-import { STALE_TIMES } from '@/lib/chain/constants';
+import { REFETCH_INTERVALS, STALE_TIMES } from '@/lib/chain/constants';
 import { bytesToString } from '@/lib/utils/chain-helpers';
 import { PaymentAsset } from '@/lib/types';
 import type { Order } from '@/lib/types';
@@ -23,10 +23,10 @@ export function getOrderDisplayUnit(order: Pick<Order, 'paymentAsset'>): 'NEX' |
   return order.paymentAsset === PaymentAsset.EntityToken ? 'Entity Token' : 'NEX';
 }
 
-export function getOrderPaymentLabel(order: Pick<Order, 'paymentAsset'>, paymentTokenLabel: string): string {
+export function getOrderPaymentLabel(order: Pick<Order, 'paymentAsset'>, paymentTokenLabel: string, shoppingBalanceLabel = 'Shopping Balance'): string {
   switch (order.paymentAsset) {
     case PaymentAsset.ShoppingBalance:
-      return 'Shopping Balance';
+      return shoppingBalanceLabel;
     case PaymentAsset.EntityToken:
       return paymentTokenLabel;
     case PaymentAsset.Native:
@@ -76,7 +76,7 @@ export function useOrder(orderId: number | null) {
       if (raw.isNone) return null;
       return parseOrder(raw.unwrap().toJSON());
     },
-    { staleTime: STALE_TIMES.orders, enabled: orderId != null },
+    { staleTime: STALE_TIMES.orders, enabled: orderId != null, refetchInterval: REFETCH_INTERVALS.orderStatus },
   );
 }
 
@@ -96,7 +96,7 @@ export function useBuyerOrders(buyer: string | null) {
       }
       return orders.sort((a, b) => b.createdAt - a.createdAt);
     },
-    { staleTime: STALE_TIMES.orders, enabled: !!buyer },
+    { staleTime: STALE_TIMES.orders, enabled: !!buyer, refetchInterval: REFETCH_INTERVALS.orderStatus },
   );
 }
 
@@ -116,7 +116,7 @@ export function useShopOrders(shopId: number | null) {
       }
       return orders.sort((a, b) => b.createdAt - a.createdAt);
     },
-    { staleTime: STALE_TIMES.orders, enabled: shopId != null },
+    { staleTime: STALE_TIMES.orders, enabled: shopId != null, refetchInterval: REFETCH_INTERVALS.orderStatus },
   );
 }
 

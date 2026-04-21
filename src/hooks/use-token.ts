@@ -2,7 +2,7 @@
 
 import { useEntityQuery } from './use-entity-query';
 import { useEntityMutation } from './use-entity-mutation';
-import { STALE_TIMES } from '@/lib/chain/constants';
+import { REFETCH_INTERVALS, STALE_TIMES } from '@/lib/chain/constants';
 import { bytesToString } from '@/lib/utils/chain-helpers';
 import type { EntityTokenConfig, EntityTokenMetadata } from '@/lib/types';
 
@@ -74,7 +74,7 @@ export function useTokenBalance(entityId: number | null, address: string | null)
       const data = raw.unwrap().toJSON();
       return String(data.balance ?? data?.free ?? '0');
     },
-    { staleTime: STALE_TIMES.token, enabled: entityId != null && !!address },
+    { staleTime: STALE_TIMES.token, enabled: entityId != null && !!address, refetchInterval: REFETCH_INTERVALS.balances },
   );
 }
 

@@ -1,11 +1,9 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { Shield, ShieldAlert } from 'lucide-react';
 import { HelpTip } from '@/components/ui/help-tip';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { formatNexPrice, formatUsdt, bpsToPercent } from '@/lib/utils/chain-helpers';
+import { formatNexPrice, bpsToPercent } from '@/lib/utils/chain-helpers';
 import type { NexMarketStats, NexPriceProtection } from '@/lib/types';
 
 interface NexPricePanelProps {
@@ -36,34 +34,6 @@ export function NexPricePanel({ stats, protection, seedPricePremiumBps }: NexPri
             <p className="mt-1 text-lg font-semibold tabular-nums">
               {hasTwapLastPrice ? `$${formatNexPrice(stats!.twapLastPrice)}` : '--'}
             </p>
-          </div>
-        </div>
-
-        {/* Stats row */}
-        <div className="mt-3 flex items-center gap-4 text-sm">
-          <div>
-            <span className="text-muted-foreground">{t('volume')} </span>
-            <span className="tabular-nums font-medium">
-              {stats?.totalVolumeUsdt && stats.totalVolumeUsdt !== '0'
-                ? `$${formatUsdt(stats.totalVolumeUsdt)}`
-                : stats?.totalTrades ?? 0}
-            </span>
-          </div>
-
-          {/* Circuit breaker */}
-          <div className="flex items-center gap-1">
-            {protection?.circuitBreakerActive ? (
-              <Badge variant="destructive" className="gap-1 text-xs">
-                <ShieldAlert className="h-3 w-3" />
-                {t('triggered')}
-              </Badge>
-            ) : (
-              <Badge variant="secondary" className="gap-1 text-xs">
-                <Shield className="h-3 w-3" />
-                {t('normal')}
-              </Badge>
-            )}
-            <HelpTip helpKey="nexMarket.circuitBreaker" iconSize={12} />
           </div>
         </div>
 

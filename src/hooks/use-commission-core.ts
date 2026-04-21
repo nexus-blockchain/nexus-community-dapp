@@ -2,7 +2,7 @@
 
 import { useEntityQuery, hasRuntimeApi } from './use-entity-query';
 import { useEntityMutation } from './use-entity-mutation';
-import { STALE_TIMES } from '@/lib/chain/constants';
+import { REFETCH_INTERVALS, STALE_TIMES } from '@/lib/chain/constants';
 import type {
   NexCommissionMemberStats,
   TokenCommissionMemberStats,
@@ -28,7 +28,7 @@ export function useMemberCommissionStats(entityId: number | null, address: strin
         orderCount: data.orderCount ?? data.order_count ?? 0,
       };
     },
-    { staleTime: STALE_TIMES.commission, enabled: entityId != null && !!address },
+    { staleTime: STALE_TIMES.commission, enabled: entityId != null && !!address, refetchInterval: REFETCH_INTERVALS.homepage },
   );
 }
 
@@ -120,7 +120,7 @@ export function useWithdrawalRecords(entityId: number | null, address: string | 
         blockNumber: r.blockNumber ?? r.block_number ?? 0,
       }));
     },
-    { staleTime: STALE_TIMES.commission, enabled: entityId != null && !!address },
+    { staleTime: STALE_TIMES.commission, enabled: entityId != null && !!address, refetchInterval: REFETCH_INTERVALS.homepage },
   );
 }
 
@@ -128,7 +128,7 @@ export function useWithdrawalRecords(entityId: number | null, address: string | 
 
 export function useWithdrawCommission() {
   return useEntityMutation('commissionCore', 'withdrawCommission', {
-    invalidateKeys: [['memberCommissionStats'], ['shoppingBalance'], ['nexBalance'], ['withdrawalRecords']],
+    invalidateKeys: [['memberCommissionStats'], ['shoppingBalance'], ['nexBalance'], ['withdrawalRecords'], ['commissionDashboard'], ['entityCommissionOverview']],
   });
 }
 

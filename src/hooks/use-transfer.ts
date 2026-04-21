@@ -5,7 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { decodeAddress } from '@polkadot/util-crypto';
 import { useApi } from '@/lib/chain';
 import { useWallet } from './use-wallet';
-import { useLocalWallet } from './use-local-wallet';
+import { useLocalWallet, isLocalWalletError } from './use-local-wallet';
 import { useWalletStore } from '@/stores/wallet-store';
 import { useTransferHistoryStore } from '@/stores/transfer-history-store';
 import {
@@ -18,7 +18,7 @@ import type { TxState } from '@/lib/types';
 export function useTransfer() {
   const { api } = useApi();
   const { address, source, getSigner } = useWallet();
-  const { unlockWallet } = useLocalWallet();
+  const { unlockWallet, getUnlockErrorMessage } = useLocalWallet();
   const isLocked = useWalletStore((s) => s.isLocked);
   const queryClient = useQueryClient();
   const [txState, setTxState] = useState<TxState>({
@@ -71,9 +71,12 @@ export function useTransfer() {
           let pair;
           try {
             pair = await unlockWallet(address, password);
-          } catch {
-            recordFailure(address);
-            throw new Error('Wrong password');
+          } catch (error) {
+            if (isLocalWalletError(error, 'WRONG_PASSWORD')) {
+              recordFailure(address);
+              throw new Error('Wrong password');
+            }
+            throw new Error(getUnlockErrorMessage(error));
           }
           recordSuccess(address);
 
@@ -160,7 +163,7 @@ export function useTransfer() {
         );
       }
     },
-    [api, address, source, isLocked, getSigner, unlockWallet, refreshBalance],
+    [api, address, source, isLocked, getSigner, unlockWallet, refreshBalance, getUnlockErrorMessage],
   );
 
   return { transfer, txState, reset };

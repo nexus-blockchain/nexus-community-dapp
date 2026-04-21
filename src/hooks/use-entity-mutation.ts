@@ -5,7 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { ApiPromise } from '@polkadot/api';
 import { useApi } from '@/lib/chain';
 import { useWallet } from './use-wallet';
-import { useLocalWallet } from './use-local-wallet';
+import { useLocalWallet, isLocalWalletError } from './use-local-wallet';
 import { useWalletStore } from '@/stores/wallet-store';
 import { useSigningStore } from '@/stores/signing-store';
 import { parseDispatchError } from '@/lib/chain/error-parser';
@@ -32,7 +32,7 @@ export function useEntityMutation(
 ) {
   const { api } = useApi();
   const { address, source, getSigner } = useWallet();
-  const { unlockWallet } = useLocalWallet();
+  const { unlockWallet, getUnlockErrorMessage } = useLocalWallet();
   const isLocked = useWalletStore((s) => s.isLocked);
   const requestPassword = useSigningStore((s) => s.requestPassword);
   const signingDone = useSigningStore((s) => s.signingDone);
@@ -88,10 +88,14 @@ export function useEntityMutation(
           let pair;
           try {
             pair = await unlockWallet(address, password);
-          } catch {
-            recordFailure(address);
+          } catch (error) {
+            if (isLocalWalletError(error, 'WRONG_PASSWORD')) {
+              recordFailure(address);
+              signingFailed();
+              throw new Error('Wrong password');
+            }
             signingFailed();
-            throw new Error('Wrong password');
+            throw new Error(getUnlockErrorMessage(error));
           }
           recordSuccess(address);
           signingDone();
@@ -228,7 +232,7 @@ export function useEntityMutation(
         options?.onError?.(errorMsg);
       }
     },
-    [api, address, source, isLocked, getSigner, unlockWallet, requestPassword, signingDone, signingFailed, requestConfirm, needsConfirmation, palletName, callName, queryClient, options],
+    [api, address, source, isLocked, getSigner, unlockWallet, requestPassword, signingDone, signingFailed, requestConfirm, needsConfirmation, palletName, callName, queryClient, options, getUnlockErrorMessage],
   );
 
   return {

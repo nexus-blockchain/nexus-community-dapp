@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Loader2, Check, AlertCircle, MapPin, UserPlus, Wallet } from 'lucide-react';
+import { Loader2, Check, AlertCircle, MapPin, UserPlus } from 'lucide-react';
 import { HelpTip } from '@/components/ui/help-tip';
 import { useProduct } from '@/hooks/use-product';
 import { useShop } from '@/hooks/use-shop';
@@ -20,6 +20,7 @@ import { useEntityMutation } from '@/hooks/use-entity-mutation';
 import { useShoppingBalance } from '@/hooks/use-loyalty';
 import { useNexPrice } from '@/hooks/use-nex-price';
 import { formatBalance, formatUsdt, applySlippageBps } from '@/lib/utils/chain-helpers';
+import { PaymentAsset } from '@/lib/types';
 import { useWalletStore } from '@/stores';
 
 async function isValidSS58(address: string): Promise<boolean> {
@@ -41,6 +42,9 @@ function OrderCreateContent() {
   const productParam = searchParams.get('product');
   const productId = productParam != null ? Number(productParam) : null;
   const quantity = Number(searchParams.get('quantity') || 1);
+  const initialPaymentAsset = searchParams.get('payment') === PaymentAsset.ShoppingBalance
+    ? PaymentAsset.ShoppingBalance
+    : PaymentAsset.Native;
   const { address } = useWalletStore();
   const { data: product, isLoading } = useProduct(productId != null && !isNaN(productId) ? productId : null);
   const { data: shop } = useShop(product?.shopId ?? null);
@@ -55,10 +59,9 @@ function OrderCreateContent() {
   const { data: shoppingBalanceRaw } = useShoppingBalance(shopEntityId, address);
   const { toNex, toUsdt } = useNexPrice();
 
-  const [paymentAsset] = useState<'Native'>('Native');
+  const [paymentAsset, setPaymentAsset] = useState<PaymentAsset>(initialPaymentAsset);
   const [shippingAddr, setShippingAddr] = useState('');
   const [referrer, setReferrer] = useState('');
-  const [useShoppingBal, setUseShoppingBal] = useState(false);
 
   const [referrerError, setReferrerError] = useState('');
   useEffect(() => {
@@ -108,14 +111,14 @@ function OrderCreateContent() {
   // We use a conservative constant that satisfies all three constraints.
   const MIN_NATIVE_RESERVE = BigInt('100000000000'); // 0.1 NEX — covers ED * 100 (1% fee)
   const shoppingBalSpend = useMemo(() => {
-    if (!useShoppingBal || !shoppingBalanceRaw) return null;
+    if (paymentAsset !== PaymentAsset.ShoppingBalance || !shoppingBalanceRaw) return null;
     const bal = BigInt(shoppingBalanceRaw);
     if (bal <= BigInt(0) || totalNex <= MIN_NATIVE_RESERVE) return null;
     const maxDeduct = totalNex - MIN_NATIVE_RESERVE;
     const cap = maxDeduct < bal ? maxDeduct : bal;
     if (cap <= BigInt(0)) return null;
     return cap.toString();
-  }, [useShoppingBal, shoppingBalanceRaw, totalNex, MIN_NATIVE_RESERVE]);
+  }, [paymentAsset, shoppingBalanceRaw, totalNex, MIN_NATIVE_RESERVE]);
 
   const isBusy = txState.status === 'signing' || txState.status === 'broadcasting' || txState.status === 'inBlock';
 
@@ -129,8 +132,8 @@ function OrderCreateContent() {
       quantity,                            // quantity
       shippingAddr || null,                // shipping_cid
       null,                                // use_tokens: always null (no entity token)
-      useShoppingBal && shoppingBalSpend   // payment_asset: Option<PaymentAsset>
-        ? 'ShoppingBalance' : paymentAsset,
+      paymentAsset === PaymentAsset.ShoppingBalance && shoppingBalSpend
+        ? PaymentAsset.ShoppingBalance : paymentAsset,
       null,                                // note_cid
       referrer || null,                    // referrer
       maxNexAmount,                        // max_nex_amount (slippage-capped for USDT-priced products)
@@ -240,15 +243,38 @@ function OrderCreateContent() {
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">{t('paymentType')} <HelpTip helpKey="order.paymentType" /></CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="flex gap-3">
-            <Button
-              variant="default"
-              size="sm"
-            >
-              {t('nativeToken')}
-            </Button>
-          </div>
+        <CardContent className="space-y-3">
+          <button
+            type="button"
+            className={`w-full rounded-lg border p-4 text-left transition-colors ${paymentAsset === PaymentAsset.Native ? 'border-primary bg-primary/5' : 'border-border bg-background'}`}
+            onClick={() => setPaymentAsset(PaymentAsset.Native)}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="font-medium">{t('paymentNative')}</div>
+                <div className="text-xs text-muted-foreground">{t('nativeToken')}</div>
+              </div>
+              <div className={`h-4 w-4 rounded-full border ${paymentAsset === PaymentAsset.Native ? 'border-primary' : 'border-muted-foreground/40'} flex items-center justify-center`}>
+                {paymentAsset === PaymentAsset.Native ? <div className="h-2 w-2 rounded-full bg-primary" /> : null}
+              </div>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            className={`w-full rounded-lg border p-4 text-left transition-colors ${paymentAsset === PaymentAsset.ShoppingBalance ? 'border-primary bg-primary/5' : 'border-border bg-background'}`}
+            onClick={() => setPaymentAsset(PaymentAsset.ShoppingBalance)}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="font-medium">{t('shoppingBalanceNex')}</div>
+                <div className="text-xs text-muted-foreground">{t('shoppingBalanceAvailable', { amount: formatBalance(shoppingBalanceRaw ?? '0') })}</div>
+              </div>
+              <div className={`h-4 w-4 rounded-full border ${paymentAsset === PaymentAsset.ShoppingBalance ? 'border-primary' : 'border-muted-foreground/40'} flex items-center justify-center`}>
+                {paymentAsset === PaymentAsset.ShoppingBalance ? <div className="h-2 w-2 rounded-full bg-primary" /> : null}
+              </div>
+            </div>
+          </button>
         </CardContent>
       </Card>
 

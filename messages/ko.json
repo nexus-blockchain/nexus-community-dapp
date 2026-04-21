@@ -8,11 +8,11 @@
     "me": "마이페이지"
   },
   "home": {
-    "title": "ERNV 커뮤니티",
+    "title": "NEXCOM",
     "welcome": "{name}님 환영합니다",
-    "welcomeDefault": "ERNV 커뮤니티 플랫폼에 오신 것을 환영합니다",
+    "welcomeDefault": "NEXCOM에 오신 것을 환영합니다",
     "welcomePrefix": "환영합니다",
-    "welcomeDefaultName": "ERNV 커뮤니티 플랫폼",
+    "welcomeDefaultName": "NEXCOM",
     "subtitle": "블록체인과 NEX로 더 나은 미래를 만들어갑니다!",
     "directReferrals": "직접 초대 {count}명",
     "teamSize": "총 인원 {count}명",
@@ -993,9 +993,9 @@
   },
   "about": {
     "title": "소개",
-    "projectName": "NEXUS 커뮤니티",
+    "projectName": "NEXCOM",
     "slogan": "탈중앙화 커뮤니티 커머스 플랫폼",
-    "description": "NEXUS는 Substrate 기반의 탈중앙화 커뮤니티 커머스 플랫폼으로, 블록체인 기술을 통해 소비자와 현실 세계의 비즈니스를 연결하여 투명하고 신뢰할 수 있는 상업 생태계를 만듭니다.",
+    "description": "NEXCOM는 Substrate 기반의 탈중앙화 커뮤니티 커머스 플랫폼으로, 블록체인 기술을 통해 소비자와 현실 세계의 비즈니스를 연결하여 투명하고 신뢰할 수 있는 상업 생태계를 만듭니다.",
     "features": "핵심 기능",
     "featureDecentralized": "탈중앙화",
     "featureDecentralizedDesc": "투명하고 변경 불가능한 데이터를 갖춘 Substrate 블록체인 기반",

@@ -1,6 +1,6 @@
 import { WsProvider } from '@polkadot/api';
 import type { ApiPromise } from '@polkadot/api';
-import { NODE_HEALTH_CONFIG, filterAllowedEndpoints } from './constants';
+import { NODE_HEALTH_CONFIG, filterAllowedEndpoints, isAllowedEndpoint } from './constants';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -19,7 +19,7 @@ export interface CachedNode {
 }
 
 // ---------------------------------------------------------------------------
-// IP extraction from libp2p multiaddr
+// Host extraction from libp2p multiaddr (IP and DNS)
 // ---------------------------------------------------------------------------
 
 /**
@@ -46,23 +46,42 @@ export function extractIpFromMultiaddr(addr: string): string | null {
   return ip;
 }
 
+/**
+ * Extract a DNS hostname from a multiaddr like `/dns4/node.example.com/tcp/9944/...`.
+ * Only returns valid domain names (not bare IPs or localhost).
+ * 从 multiaddr 中提取 dns4/dns6 域名，仅返回合法域名。
+ */
+export function extractDnsFromMultiaddr(addr: string): string | null {
+  const match = addr.match(/\/dns[46]\/([\w.-]+)\//);
+  if (!match) return null;
+  const host = match[1];
+  // Skip localhost and bare IPs
+  if (host === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(host)) return null;
+  // Must contain at least one dot (i.e. a real domain)
+  if (!host.includes('.')) return null;
+  return host;
+}
+
 // ---------------------------------------------------------------------------
 // Peer discovery via RPC
 // ---------------------------------------------------------------------------
 
 /**
- * Discover peer IPs by calling `system.networkState()` on the connected API.
- * This is an "unsafe" RPC — if the node does not expose it, we catch and return [].
+ * Discover peer endpoints by extracting DNS hostnames from multiaddr in
+ * `system_networkState`. Only domains (dns4/dns6) produce wss:// endpoints;
+ * bare IPs are skipped since they lack TLS certificates.
+ * 通过 system_networkState 发现对等节点的域名，仅对 dns4/dns6 域名生成 wss:// 端点，
+ * 裸 IP 因无 TLS 证书而跳过。
  */
 export async function discoverPeers(api: ApiPromise): Promise<string[]> {
+  const domains = new Set<string>();
+
+  // --- Try unsafe RPC: system.networkState() ---
   try {
     const state = await (api.rpc.system as unknown as { networkState: () => Promise<unknown> }).networkState();
     const json = (state as { toJSON?: () => unknown }).toJSON?.() ?? state;
     const obj = json as Record<string, unknown>;
 
-    const ips = new Set<string>();
-
-    // peeredPeers / connectedPeers / notConnectedPeers — various shapes across substrate versions
     const peerSections = ['peeredPeers', 'connectedPeers', 'notConnectedPeers'];
     for (const section of peerSections) {
       const peers = obj[section] as Record<string, unknown> | undefined;
@@ -72,33 +91,29 @@ export async function discoverPeers(api: ApiPromise): Promise<string[]> {
         const peer = peers[peerId] as Record<string, unknown> | undefined;
         if (!peer) continue;
 
-        // knownAddresses is typically an array of multiaddr strings
         const addrs = (peer.knownAddresses ?? peer.known_addresses) as string[] | undefined;
         if (!Array.isArray(addrs)) continue;
 
         for (const raw of addrs) {
-          // Some versions wrap in an object {addr, ..}, some are plain strings
           const addrStr = typeof raw === 'string' ? raw : (raw as Record<string, string>)?.addr;
           if (typeof addrStr !== 'string') continue;
-          const ip = extractIpFromMultiaddr(addrStr);
-          if (ip) ips.add(ip);
+          const dns = extractDnsFromMultiaddr(addrStr);
+          if (dns) domains.add(dns);
         }
       }
     }
-
-    // Generate trusted wss:// endpoints for each public IP × port.
-    const endpoints: string[] = [];
-    const ipArray = Array.from(ips);
-    for (const ip of ipArray) {
-      for (const port of NODE_HEALTH_CONFIG.discoveryRpcPorts) {
-        endpoints.push(`wss://${ip}:${port}`);
-      }
-    }
-    return filterAllowedEndpoints(endpoints);
   } catch {
     // system_networkState is unsafe RPC; gracefully degrade
-    return [];
   }
+
+  // Generate wss:// endpoints only for discovered domains (TLS-capable)
+  const endpoints: string[] = [];
+  for (const domain of Array.from(domains)) {
+    for (const port of NODE_HEALTH_CONFIG.discoveryRpcPorts) {
+      endpoints.push(`wss://${domain}:${port}`);
+    }
+  }
+  return filterAllowedEndpoints(endpoints);
 }
 
 // ---------------------------------------------------------------------------
@@ -234,8 +249,10 @@ export function loadCachedNodes(): CachedNode[] {
     if (!raw) return [];
     const nodes: CachedNode[] = JSON.parse(raw);
     const now = Date.now();
-    // Evict stale entries
-    return nodes.filter((n) => now - n.lastSeen < NODE_HEALTH_CONFIG.nodeEvictionAge);
+    // Evict stale entries and endpoints no longer allowed
+    return nodes.filter(
+      (n) => isAllowedEndpoint(n.endpoint) && now - n.lastSeen < NODE_HEALTH_CONFIG.nodeEvictionAge,
+    );
   } catch {
     return [];
   }
@@ -244,8 +261,10 @@ export function loadCachedNodes(): CachedNode[] {
 export function saveCachedNodes(nodes: CachedNode[]): void {
   if (typeof window === 'undefined') return;
   try {
-    // Enforce max limit
-    const trimmed = nodes.slice(0, NODE_HEALTH_CONFIG.maxDiscoveredNodes);
+    // Enforce allowlist and max limit
+    const trimmed = filterAllowedEndpoints(nodes.map((n) => n.endpoint))
+      .map((endpoint) => nodes.find((n) => n.endpoint === endpoint)!)
+      .slice(0, NODE_HEALTH_CONFIG.maxDiscoveredNodes);
     localStorage.setItem(NODE_HEALTH_CONFIG.discoveredNodesCacheKey, JSON.stringify(trimmed));
   } catch { /* ignore */ }
 }

@@ -1,19 +1,22 @@
-/** Default seed nodes.
- * Production deployments can override via NEXT_PUBLIC_WS_ENDPOINTS env var. */
+/** Default seed nodes. */
 export const SEED_NODES: string[] = [
-  'wss://80.96.113.85:9948',
+  'wss://285189.xyz/ws/',
+  'wss://rpc.nexcommunity.net',
+  // 'wss://ssl.xaxrr.cn/ws/',
+  // 'wss://nexuscom.duckdns.org:9948',
 ];
 
-function isAllowedRemoteEndpoint(endpoint: string): boolean {
-  return endpoint.startsWith('wss://') || endpoint.startsWith('ws://');
-}
-
-function isAllowedLocalEndpoint(endpoint: string): boolean {
-  return endpoint.startsWith('ws://127.0.0.1') || endpoint.startsWith('ws://localhost');
-}
-
+/**
+ * Allow any wss:// or ws:// endpoint so that discovered peers can be used.
+ * 允许所有 wss:// 或 ws:// 端点，使发现的对等节点可被使用。
+ */
 export function isAllowedEndpoint(endpoint: string): boolean {
-  return isAllowedLocalEndpoint(endpoint) || isAllowedRemoteEndpoint(endpoint);
+  try {
+    const url = new URL(endpoint);
+    return url.protocol === 'wss:' || url.protocol === 'ws:';
+  } catch {
+    return false;
+  }
 }
 
 export function filterAllowedEndpoints(endpoints: string[]): string[] {
@@ -76,12 +79,7 @@ export function getSeedEndpoints(): string[] {
  * Discovered node cache is intentionally excluded from automatic connection.
  */
 export function getConfiguredEndpoints(): string[] {
-  const multi = process.env.NEXT_PUBLIC_WS_ENDPOINTS;
-  const base: string[] = multi
-    ? multi.split(',').map((s) => s.trim()).filter(Boolean)
-    : [...SEED_NODES];
-
-  return filterAllowedEndpoints(base);
+  return getSeedEndpoints();
 }
 
 /** React Query staleTime configuration per module (in ms) */
@@ -102,6 +100,16 @@ export const STALE_TIMES = {
   review:      30_000,   // 30s
   disclosure:  30_000,   // 30s
   runtimeApi:  15_000,   // 15s
+} as const;
+
+/** React Query refetch intervals for live chain-backed views (in ms) */
+export const REFETCH_INTERVALS = {
+  homepage: 30_000,
+  marketFast: 5_000,
+  orderStatus: 10_000,
+  balances: 15_000,
+  member: 15_000,
+  listing: 30_000,
 } as const;
 
 /** React Query retry configuration */

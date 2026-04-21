@@ -2,7 +2,7 @@
 
 import { useEntityQuery } from './use-entity-query';
 import { useEntityMutation } from './use-entity-mutation';
-import { STALE_TIMES } from '@/lib/chain/constants';
+import { REFETCH_INTERVALS, STALE_TIMES } from '@/lib/chain/constants';
 import { bytesToString } from '@/lib/utils/chain-helpers';
 import type { PointsConfig } from '@/lib/types';
 
@@ -49,7 +49,7 @@ export function useShoppingBalance(entityId: number | null, address: string | nu
       const raw = await (api.query as any).entityLoyalty.memberShoppingBalance(entityId, address);
       return String(raw.toJSON() ?? '0');
     },
-    { staleTime: STALE_TIMES.entity, enabled: entityId != null && !!address },
+    { staleTime: STALE_TIMES.entity, enabled: entityId != null && !!address, refetchInterval: REFETCH_INTERVALS.balances },
   );
 }
 
@@ -62,7 +62,7 @@ export function useTokenShoppingBalance(entityId: number | null, address: string
       const raw = await (api.query as any).entityLoyalty.memberTokenShoppingBalance(entityId, address);
       return String(raw.toJSON() ?? '0');
     },
-    { staleTime: STALE_TIMES.entity, enabled: entityId != null && !!address },
+    { staleTime: STALE_TIMES.entity, enabled: entityId != null && !!address, refetchInterval: REFETCH_INTERVALS.balances },
   );
 }
 

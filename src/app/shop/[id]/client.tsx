@@ -21,9 +21,9 @@ import { formatBalance, formatUsdt, formatRating, formatNexPrice } from '@/lib/u
 export default function ShopDetailClient({ params }: { params: { id: string } }) {
   const t = useTranslations('shop');
   const pathname = usePathname();
-  // In Capacitor SPA fallback, params.id is statically "0" from build time.
-  // Extract the real ID from the URL pathname instead.
-  const shopId = Number(pathname.split('/').filter(Boolean)[1] ?? params.id);
+  const pathSegments = pathname.split('/').filter(Boolean);
+  const pathId = pathSegments[pathSegments.length - 1];
+  const shopId = Number(pathId ?? params.id);
   const { data: shop, isLoading: shopLoading } = useShop(shopId);
   const { data: shopDescription } = useIpfsContent(shop?.descriptionCid);
   const { data: products, isLoading: productsLoading } = useShopProducts(shopId);

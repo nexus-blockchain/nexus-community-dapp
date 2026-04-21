@@ -2,7 +2,7 @@
 
 import { useEntityQuery } from './use-entity-query';
 import { useEntityMutation } from './use-entity-mutation';
-import { STALE_TIMES } from '@/lib/chain/constants';
+import { REFETCH_INTERVALS, STALE_TIMES } from '@/lib/chain/constants';
 import type { TradeOrder, TradeRecord, MarketStats } from '@/lib/types';
 
 function parseTradeOrder(data: any): TradeOrder {
@@ -38,7 +38,7 @@ export function useEntitySellOrders(entityId: number | null) {
       }
       return orders.sort((a, b) => { const diff = BigInt(a.price) - BigInt(b.price); return diff < BigInt(0) ? -1 : diff > BigInt(0) ? 1 : 0; });
     },
-    { staleTime: STALE_TIMES.orderBook, enabled: entityId != null },
+    { staleTime: STALE_TIMES.orderBook, enabled: entityId != null, refetchInterval: REFETCH_INTERVALS.marketFast },
   );
 }
 
@@ -58,7 +58,7 @@ export function useEntityBuyOrders(entityId: number | null) {
       }
       return orders.sort((a, b) => { const diff = BigInt(b.price) - BigInt(a.price); return diff < BigInt(0) ? -1 : diff > BigInt(0) ? 1 : 0; });
     },
-    { staleTime: STALE_TIMES.orderBook, enabled: entityId != null },
+    { staleTime: STALE_TIMES.orderBook, enabled: entityId != null, refetchInterval: REFETCH_INTERVALS.marketFast },
   );
 }
 
@@ -78,7 +78,7 @@ export function useUserMarketOrders(address: string | null) {
       }
       return orders.sort((a, b) => b.createdAt - a.createdAt);
     },
-    { staleTime: STALE_TIMES.orderBook, enabled: !!address },
+    { staleTime: STALE_TIMES.orderBook, enabled: !!address, refetchInterval: REFETCH_INTERVALS.marketFast },
   );
 }
 
@@ -96,7 +96,7 @@ export function useMarketStats(entityId: number | null) {
         totalVolumeNex: String(data?.totalVolumeNex ?? data?.total_volume_nex ?? '0'),
       };
     },
-    { staleTime: STALE_TIMES.orderBook, enabled: entityId != null },
+    { staleTime: STALE_TIMES.orderBook, enabled: entityId != null, refetchInterval: REFETCH_INTERVALS.marketFast },
   );
 }
 
@@ -110,7 +110,7 @@ export function useLastTradePrice(entityId: number | null) {
       if (raw.isNone) return '0';
       return String(raw.unwrap().toJSON());
     },
-    { staleTime: STALE_TIMES.orderBook, enabled: entityId != null },
+    { staleTime: STALE_TIMES.orderBook, enabled: entityId != null, refetchInterval: REFETCH_INTERVALS.marketFast },
   );
 }
 
@@ -129,7 +129,7 @@ export function useBestPrices(entityId: number | null) {
         bestBid: bidRaw.isNone ? null : String(bidRaw.unwrap().toJSON()),
       };
     },
-    { staleTime: STALE_TIMES.orderBook, enabled: entityId != null },
+    { staleTime: STALE_TIMES.orderBook, enabled: entityId != null, refetchInterval: REFETCH_INTERVALS.marketFast },
   );
 }
 
@@ -161,7 +161,7 @@ export function useEntityTradeHistory(entityId: number | null) {
       }
       return trades.reverse();
     },
-    { staleTime: STALE_TIMES.orderBook, enabled: entityId != null },
+    { staleTime: STALE_TIMES.orderBook, enabled: entityId != null, refetchInterval: REFETCH_INTERVALS.marketFast },
   );
 }
 

@@ -8,11 +8,11 @@
     "me": "Moi"
   },
   "home": {
-    "title": "Communauté ERNV",
+    "title": "NEXCOM",
     "welcome": "Bienvenue sur {name}",
-    "welcomeDefault": "Bienvenue sur la plateforme communautaire ERNV",
+    "welcomeDefault": "Bienvenue sur NEXCOM",
     "welcomePrefix": "Bienvenue sur",
-    "welcomeDefaultName": "Plateforme communautaire ERNV",
+    "welcomeDefaultName": "NEXCOM",
     "subtitle": "Construisons un avenir meilleur avec la blockchain et NEX !",
     "directReferrals": "Directs {count}",
     "teamSize": "Total {count}",
@@ -494,9 +494,9 @@
   },
   "about": {
     "title": "À propos de nous",
-    "projectName": "Communauté NEXUS",
+    "projectName": "NEXCOM",
     "slogan": "Plateforme de commerce communautaire décentralisée",
-    "description": "NEXUS est une plateforme de commerce communautaire décentralisée construite sur Substrate, reliant les consommateurs aux entreprises du monde réel grâce à la technologie blockchain pour un écosystème commercial transparent et digne de confiance.",
+    "description": "NEXCOM est une plateforme de commerce communautaire décentralisée construite sur Substrate, reliant les consommateurs aux entreprises du monde réel grâce à la technologie blockchain pour un écosystème commercial transparent et digne de confiance.",
     "features": "Fonctionnalités principales",
     "featureDecentralized": "Décentralisé",
     "featureDecentralizedDesc": "Construit sur la blockchain Substrate avec des données transparentes et immuables",

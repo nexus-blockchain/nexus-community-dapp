@@ -8,11 +8,11 @@
     "me": "أنا"
   },
   "home": {
-    "title": "مجتمع ERNV",
+    "title": "NEXCOM",
     "welcome": "مرحبًا بك في {name}",
-    "welcomeDefault": "مرحبًا بك في منصة مجتمع ERNV",
+    "welcomeDefault": "مرحبًا بك في NEXCOM",
     "welcomePrefix": "مرحبًا بك في",
-    "welcomeDefaultName": "منصة مجتمع ERNV",
+    "welcomeDefaultName": "NEXCOM",
     "subtitle": "نبني مستقبلًا أفضل باستخدام البلوكشين وNEX!",
     "directReferrals": "المباشرون {count}",
     "teamSize": "الإجمالي {count}",
@@ -494,9 +494,9 @@
   },
   "about": {
     "title": "من نحن",
-    "projectName": "مجتمع NEXUS",
+    "projectName": "NEXCOM",
     "slogan": "منصة تجارة مجتمعية لامركزية",
-    "description": "NEXUS هي منصة تجارة مجتمعية لامركزية مبنية على Substrate، تربط المستهلكين بالشركات الواقعية عبر تقنية البلوكشين لإنشاء نظام تجاري شفاف وجدير بالثقة.",
+    "description": "NEXCOM هي منصة تجارة مجتمعية لامركزية مبنية على Substrate، تربط المستهلكين بالشركات الواقعية عبر تقنية البلوكشين لإنشاء نظام تجاري شفاف وجدير بالثقة.",
     "features": "الميزات الأساسية",
     "featureDecentralized": "لامركزية",
     "featureDecentralizedDesc": "مبنية على بلوكشين Substrate مع بيانات شفافة وغير قابلة للتغيير",

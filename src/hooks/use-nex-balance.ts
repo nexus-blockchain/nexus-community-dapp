@@ -1,7 +1,7 @@
 'use client';
 
 import { useEntityQuery } from './use-entity-query';
-import { STALE_TIMES } from '@/lib/chain/constants';
+import { REFETCH_INTERVALS, STALE_TIMES } from '@/lib/chain/constants';
 
 export interface NexBalance {
   free: bigint;
@@ -26,6 +26,6 @@ export function useNexBalance(address: string | null | undefined) {
         frozen: BigInt(String(data?.frozen ?? data?.miscFrozen ?? 0)),
       };
     },
-    { staleTime: STALE_TIMES.entity, enabled: !!address },
+    { staleTime: STALE_TIMES.entity, enabled: !!address, refetchInterval: REFETCH_INTERVALS.balances },
   );
 }

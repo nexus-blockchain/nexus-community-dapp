@@ -4,8 +4,8 @@ import { BottomTabs } from '@/components/layout/bottom-tabs';
 import '@/styles/globals.css';
 
 export const metadata: Metadata = {
-  title: 'NEXUS Community',
-  description: 'NEXUS Community dApp',
+  title: 'NEXCOM',
+  description: 'NEXCOM - Nexus Community DApp',
   manifest: '/manifest.json',
 };
 

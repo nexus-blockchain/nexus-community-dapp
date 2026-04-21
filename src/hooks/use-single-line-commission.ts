@@ -1,7 +1,7 @@
 'use client';
 
 import { useEntityQuery, hasRuntimeApi } from './use-entity-query';
-import { STALE_TIMES } from '@/lib/chain/constants';
+import { REFETCH_INTERVALS, STALE_TIMES } from '@/lib/chain/constants';
 import {
   parseSingleLineMemberView,
   parseSingleLinePosition,
@@ -24,7 +24,7 @@ export function useSingleLineOverview(entityId: number | null) {
       const raw = await (api.call as any).singleLineQueryApi.singleLineOverview(entityId);
       return parseSingleLineStats(raw);
     },
-    { staleTime: STALE_TIMES.runtimeApi, enabled: entityId != null },
+    { staleTime: STALE_TIMES.runtimeApi, enabled: entityId != null, refetchInterval: REFETCH_INTERVALS.homepage },
   );
 }
 
@@ -37,7 +37,7 @@ export function useSingleLinePosition(entityId: number | null, address: string |
       const raw = await (api.call as any).singleLineQueryApi.singleLineMemberPosition(entityId, address);
       return parseSingleLinePosition(raw);
     },
-    { staleTime: STALE_TIMES.runtimeApi, enabled: entityId != null && !!address },
+    { staleTime: STALE_TIMES.runtimeApi, enabled: entityId != null && !!address, refetchInterval: REFETCH_INTERVALS.homepage },
   );
 }
 
@@ -50,7 +50,7 @@ export function useSingleLineMemberView(entityId: number | null, address: string
       const raw = await (api.call as any).singleLineQueryApi.singleLineMemberView(entityId, address);
       return parseSingleLineMemberView(raw);
     },
-    { staleTime: STALE_TIMES.runtimeApi, enabled: entityId != null && !!address },
+    { staleTime: STALE_TIMES.runtimeApi, enabled: entityId != null && !!address, refetchInterval: REFETCH_INTERVALS.homepage },
   );
 }
 

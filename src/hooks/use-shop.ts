@@ -2,7 +2,7 @@
 
 import { useEntityQuery } from './use-entity-query';
 import { useEntityMutation } from './use-entity-mutation';
-import { STALE_TIMES } from '@/lib/chain/constants';
+import { REFETCH_INTERVALS, STALE_TIMES } from '@/lib/chain/constants';
 import { bytesToString } from '@/lib/utils/chain-helpers';
 import type { Shop } from '@/lib/types';
 
@@ -32,7 +32,7 @@ export function useShop(shopId: number | null) {
         createdAt: data.createdAt ?? data.created_at ?? 0,
       } as Shop;
     },
-    { staleTime: STALE_TIMES.shops, enabled: shopId != null },
+    { staleTime: STALE_TIMES.shops, enabled: shopId != null, refetchInterval: REFETCH_INTERVALS.listing },
   );
 }
 
@@ -68,7 +68,7 @@ export function useEntityShops(entityId: number | null) {
       }
       return shops;
     },
-    { staleTime: STALE_TIMES.shops, enabled: entityId != null },
+    { staleTime: STALE_TIMES.shops, enabled: entityId != null, refetchInterval: REFETCH_INTERVALS.listing },
   );
 }
 

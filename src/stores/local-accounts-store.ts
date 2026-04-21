@@ -10,13 +10,14 @@ export interface LocalAccount {
 
 const STORAGE_KEY = 'nexus_local_accounts';
 
-function loadAccounts(): LocalAccount[] {
-  if (typeof window === 'undefined') return [];
+function loadAccounts(): { accounts: LocalAccount[]; loadError: string | null } {
+  if (typeof window === 'undefined') return { accounts: [], loadError: null };
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
+    return { accounts: raw ? JSON.parse(raw) : [], loadError: null };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown local account storage error';
+    return { accounts: [], loadError: message };
   }
 }
 
@@ -28,6 +29,7 @@ function saveAccounts(accounts: LocalAccount[]) {
 interface LocalAccountsState {
   accounts: LocalAccount[];
   hydrated: boolean;
+  loadError: string | null;
 
   hydrate: () => void;
   addAccount: (account: LocalAccount) => void;
@@ -39,11 +41,12 @@ interface LocalAccountsState {
 export const useLocalAccountsStore = create<LocalAccountsState>((set, get) => ({
   accounts: [],
   hydrated: false,
+  loadError: null,
 
   hydrate: () => {
     if (get().hydrated) return;
-    const accounts = loadAccounts();
-    set({ accounts, hydrated: true });
+    const { accounts, loadError } = loadAccounts();
+    set({ accounts, hydrated: true, loadError });
   },
 
   addAccount: (account) => {
@@ -53,13 +56,13 @@ export const useLocalAccountsStore = create<LocalAccountsState>((set, get) => ({
     }
     const accounts = [...existing, account];
     saveAccounts(accounts);
-    set({ accounts });
+    set({ accounts, loadError: null });
   },
 
   removeAccount: (address) => {
     const accounts = get().accounts.filter((a) => a.address !== address);
     saveAccounts(accounts);
-    set({ accounts });
+    set({ accounts, loadError: null });
   },
 
   renameAccount: (address, name) => {
@@ -67,7 +70,7 @@ export const useLocalAccountsStore = create<LocalAccountsState>((set, get) => ({
       a.address === address ? { ...a, name } : a,
     );
     saveAccounts(accounts);
-    set({ accounts });
+    set({ accounts, loadError: null });
   },
 
   getAll: () => get().accounts,

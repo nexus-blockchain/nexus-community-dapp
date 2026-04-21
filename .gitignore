@@ -12,6 +12,7 @@
 # Next.js
 /.next/
 /out/
+/docs/
 
 # Production / Build
 /build
@@ -38,6 +39,7 @@ yarn-error.log*
 
 # Capacitor (Android)
 /android/
+*.jks
 
 # TypeScript
 *.tsbuildinfo
